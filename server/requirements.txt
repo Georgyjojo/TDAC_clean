@@ -1,0 +1,25 @@
+# TDAC Backend — Python dependencies
+# Install with:  pip install -r requirements.txt
+
+# Web framework
+fastapi==0.116.1
+uvicorn[standard]==0.35.0
+
+# PostgreSQL (async driver used by app/database.py)
+asyncpg==0.30.0
+
+# Request / response validation
+pydantic==2.11.7
+
+
+
+# JWT handling (app/auth/security.py)
+python-jose[cryptography]
+
+# Environment variable loading (app/config.py)
+python-dotenv
+
+# Password hashing (app/auth/security.py)
+pwdlib[bcrypt]
+# # Password hashing (app/auth/security.py)
+# pwdlib[argon2]==0.2.1
