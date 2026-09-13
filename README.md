@@ -119,4 +119,8 @@ npm run dev
 | client/ | `npm run dev`     | Start the dev server            |
 | client/ | `npm run build`   | Production build                |
 | client/ | `npm run lint`    | Lint with oxlint                |
+| client/ | `npx vite-node smoke-modal.test.mjs` | Runtime UI smoke (Add Project + Topbar) |
+| client/ | `npx vite-node smoke-workspace.test.mjs` | Runtime UI smoke (workspace tabs) |
+| client/ | `npx vite-node smoke-fielddata.test.mjs` | Static render smoke (workspace panels) |
+| server/ | `python -m pytest` | Run the backend test suite |
 | server/ | `python app/create_admin.py` | Create an admin user (venv active, DB connected) |

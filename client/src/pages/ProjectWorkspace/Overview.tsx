@@ -4,6 +4,8 @@ import {
   type LocaRecord,
   type ProjectRecord,
 } from "../../api/projects";
+import { createLocaFromExcel, type ImportedWorkbook } from "../../api/excelImport";
+import { ExcelFilePicker } from "../../components/ExcelFilePicker";
 import { AddLocaModal } from "./AddLocaModal";
 
 interface OverviewProps {
@@ -15,8 +17,9 @@ interface OverviewProps {
   onEditingChange: (editing: boolean) => void;
   onProjectUpdated: (project: ProjectRecord) => void;
   addingLoca: boolean;
-  onAddingLocaChange: (adding: boolean) => void;
+  onAddingLocaChange: (addingLoca: boolean) => void;
   onLocaCreated: (loca: LocaRecord) => void;
+  onLocasImported?: () => void;
 }
 
 export function Overview({
@@ -30,6 +33,7 @@ export function Overview({
   addingLoca,
   onAddingLocaChange,
   onLocaCreated,
+  onLocasImported,
 }: OverviewProps) {
   const [projectName, setProjectName] = useState("");
   const [projectLocation, setProjectLocation] = useState("");
@@ -37,6 +41,43 @@ export function Overview({
 
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+
+  const [importBusy, setImportBusy] = useState(false);
+  const [importNotice, setImportNotice] = useState<string | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
+
+  async function handleExcelImported(workbook: ImportedWorkbook) {
+    if (!projectId) {
+      setImportError("No project ID was provided.");
+      return;
+    }
+
+    try {
+      setImportBusy(true);
+      setImportError(null);
+      setImportNotice(null);
+
+      const result = await createLocaFromExcel(projectId, {
+        borehole_type: "BH",
+        workbook,
+      });
+
+      setImportNotice(
+        `Imported ${result.borehole_id}: ${result.geol_rows} borelog, ` +
+        `${result.core_rows} rock profile, ${result.spt_rows} SPT rows.`
+      );
+      onLocasImported?.();
+    } catch (error) {
+      console.error("Failed to import location from Excel:", error);
+      setImportError(
+        error instanceof Error
+          ? error.message
+          : "Unable to import this workbook."
+      );
+    } finally {
+      setImportBusy(false);
+    }
+  }
 
   function startEditing() {
     if (!project) {
@@ -223,19 +264,45 @@ export function Overview({
         <div className="panel-head">
           <h2 className="panel-title">Investigation Locations</h2>
 
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={() => onAddingLocaChange(true)}
-          >
-            + Add Location
-          </button>
+          <div className="actions">
+            <ExcelFilePicker
+              onParsed={(workbook) => handleExcelImported(workbook)}
+              onError={(message) => {
+                setImportNotice(null);
+                setImportError(message);
+              }}
+              disabled={importBusy}
+              label="Import from Excel"
+            />
+
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => onAddingLocaChange(true)}
+            >
+              + Add Location
+            </button>
+          </div>
         </div>
         <div className="panel-body">
           <p className="page-sub">
             Add and manage investigation locations associated with this
             project.
           </p>
+
+          {importBusy && (
+            <p className="page-sub">Importing workbook...</p>
+          )}
+
+          {importNotice && (
+            <div className="import-note" role="status">
+              {importNotice}
+            </div>
+          )}
+
+          {importError && (
+            <div className="warning-note">{importError}</div>
+          )}
         </div>
       </section>
 

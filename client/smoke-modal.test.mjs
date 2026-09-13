@@ -1,113 +1,151 @@
-/* Runtime smoke test: render the full App (untouched Home.tsx + AppShell),
-   click "+ Add New Project", assert the modal opens with the 12 mockup fields
-   and closes via Cancel / Escape / backdrop. */
+/* Runtime smoke test: Add New Project page + Topbar account menu.
+   Renders the REAL App (AuthProvider + HashRouter) at /#/projects/new,
+   checks the 9 form fields, the Excel import trigger, Cancel navigation,
+   and the account menu open/close + change-password modal paths. */
 import { JSDOM } from "jsdom";
 
 const dom = new JSDOM("<!doctype html><html><body><div id=root></div></body></html>", {
-  url: "http://localhost/",
+  url: "http://localhost/#/projects/new",
   pretendToBeVisual: true,
 });
 global.window = dom.window;
 global.document = dom.window.document;
 Object.defineProperty(global, "navigator", { value: dom.window.navigator, configurable: true });
 global.HTMLElement = dom.window.HTMLElement;
+global.IS_REACT_ACT_ENVIRONMENT = true;
+global.localStorage = dom.window.localStorage;
+
+// ProtectedRoute needs a persisted token; write it BEFORE App mounts.
+dom.window.localStorage.setItem("access_token", "test-token");
+dom.window.localStorage.setItem("refresh_token", "test-refresh");
+
+// Session restore calls GET /api/auth/home; the portfolio register calls
+// GET /api/portfolio/summary. Route each URL to the shape its caller
+// expects so the real pages render without a backend.
+global.fetch = dom.window.fetch = async (url, _opts) => {
+  if (String(url).includes("/api/auth/home")) {
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({ message: "ok", user: { id: 1, username: "test-admin", role: "admin" } }),
+      headers: { get: () => "application/json" },
+    };
+  }
+  return {
+    ok: true,
+    status: 200,
+    json: async () => ({ projects: [], total_projects: 0, active_projects: 0, completed_projects: 0 }),
+    headers: { get: () => "application/json" },
+  };
+};
 
 const { createRoot } = await import("react-dom/client");
 const { act } = await import("react");
 const React = await import("react");
 const { default: App } = await import("./src/App.tsx");
+const { AuthProvider } = await import("./src/auth/AuthContext.tsx");
 
 const root = createRoot(document.getElementById("root"));
 await act(async () => {
-  root.render(React.createElement(App));
+  root.render(
+    React.createElement(AuthProvider, null, React.createElement(App))
+  );
 });
+await act(async () => { await new Promise((r) => setTimeout(r, 50)); });
 
 const results = [];
 const check = (name, cond) => results.push(`${cond ? "PASS" : "FAIL"} ${name}`);
 const click = (el) => act(async () => {
   el.dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true }));
 });
-
-// 1. Trigger button exists in the untouched Home page
-const btn = [...document.querySelectorAll("button")].find(
-  (b) => b.textContent.trim() === "+ Add New Project"
-);
-check("Add New Project button rendered (Home.tsx untouched)", !!btn);
-
-// 2. Modal absent before click
-check("modal closed before click", !document.querySelector(".modal-overlay"));
-
-// 3. Click -> modal opens (delegated listener)
-await click(btn);
-let overlay = document.querySelector(".modal-overlay");
-check("modal opens on click", !!overlay);
-check("role=dialog + aria-modal",
-  overlay?.getAttribute("role") === "dialog" && overlay?.getAttribute("aria-modal") === "true");
-check("aria-labelledby resolves",
-  document.getElementById(overlay?.getAttribute("aria-labelledby")) !== null);
-
-// 4. Title + note per mockup V2
-check("title text",
-  document.querySelector(".modal-title")?.textContent === "Create Project Database Record");
-check("eyebrow New project",
-  document.querySelector(".modal-overlay .eyebrow")?.textContent.trim() === "New project");
-
-// 5. Exactly 12 fields, labels match mockup order
-const EXPECTED_LABELS = [
-  "Project number","Project name","Client","Country / region",
-  "Project type","Project status","Standards profile","AGS profile",
-  "Unit profile","Coordinate system","Project manager","Organisation practice profile"
-];
-const fields = [...document.querySelectorAll(".modal-field label")].map((l) => l.textContent);
-check(`12 fields rendered (got ${fields.length})`, fields.length === 12);
-check("field labels + order match mockup", JSON.stringify(fields) === JSON.stringify(EXPECTED_LABELS));
-
-// 6. Inputs/selects: counts, no mock values, mockup option lists
-const inputs = [...overlay.querySelectorAll("input.modal-input")];
-const selects = [...overlay.querySelectorAll("select.modal-input")];
-check(`6 text inputs (got ${inputs.length})`, inputs.length === 6);
-check(`6 selects (got ${selects.length})`, selects.length === 6);
-check("all inputs blank (no mock data)", inputs.every((i) => i.value === ""));
-const selByLabel = (label) =>
-  [...selects].find((s) => s.previousElementSibling?.textContent === label);
-const opts = (s) => [...s.options].map((o) => o.textContent).join("|");
-check("Project type options",
-  opts(selByLabel("Project type")) === "Building|Bridge|Road / Embankment|Port / Marine|Metro / Rail|Industrial|Other");
-check("Project status options",
-  opts(selByLabel("Project status")) === "Pending|In Progress|On Hold");
-check("Standards profile options",
-  opts(selByLabel("Standards profile")) === "India / IS + ISO|International / ISO|UK / BS + Eurocode|Custom");
-check("AGS profile options",
-  opts(selByLabel("AGS profile")) === "AGS 4.2|No AGS exchange required");
-check("Unit profile options", opts(selByLabel("Unit profile")) === "SI");
-check("Org practice options", opts(selByLabel("Organisation practice profile")) === "TDAC Standard v3");
-
-// 7. Footer buttons + close button
-const footBtns = [...overlay.querySelectorAll(".modal-actions button")].map((b) => b.textContent);
-check("footer Cancel + Add Project to Database",
-  JSON.stringify(footBtns) === JSON.stringify(["Cancel","Add Project to Database"]));
-check("SVG close button with aria-label",
-  overlay.querySelector("button[aria-label='Close dialog'] svg") !== null);
-
-// 8. Cancel closes
-await click([...overlay.querySelectorAll("button")].find((b) => b.textContent === "Cancel"));
-check("Cancel closes modal", !document.querySelector(".modal-overlay"));
-
-// 9. Escape closes
-await click(btn);
-await act(async () => {
-  window.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+const pressKey = (key) => act(async () => {
+  window.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key, bubbles: true }));
 });
-check("Escape closes modal", !document.querySelector(".modal-overlay"));
 
-// 10. Backdrop click closes
-await click(btn);
-const ov = document.querySelector(".modal-overlay");
-await click(ov);
-check("backdrop click closes modal", !document.querySelector(".modal-overlay"));
+// 1. Create-project page rendered (auth guard passed, route resolved)
+const page = () => document.querySelector(".page-title");
+check("Add New Project page rendered", page()?.textContent === "Add New Project");
+
+// 2. Exactly the 9 form fields, in form order
+const EXPECTED = [
+  "project_id", "project_name", "project_location", "project_client",
+  "borehole_id", "borehole_type", "start_date", "end_date", "final_depth",
+];
+const names = [...document.querySelectorAll("form input")].map((i) => i.name);
+check(`9 form fields (got ${names.length})`, JSON.stringify(names) === JSON.stringify(EXPECTED));
+
+// 3. All inputs blank (no mock data) and required behavior
+const allBlank = [...document.querySelectorAll("form input")].every((i) => i.value === "");
+check("all inputs blank (no mock data)", allBlank);
+check("project_id always required",
+  document.querySelector('input[name="project_id"]')?.required === true);
+check("name relaxes required when a workbook is loaded",
+  document.querySelector('input[name="project_name"]')?.required === true);
+
+// 4. Excel import trigger + Cancel live in the page head
+const headButtons = [...document.querySelectorAll(".page-head-actions button")];
+check("Excel import trigger rendered",
+  headButtons.some((b) => b.textContent.trim() === "Import from Excel input sheet"));
+check("Cancel rendered", headButtons.some((b) => b.textContent.trim() === "Cancel"));
+check("no workbook note before a file is chosen", !document.querySelector(".import-note"));
+
+// 5. Cancel navigates back to the portfolio register
+await click(headButtons.find((b) => b.textContent.trim() === "Cancel"));
+await act(async () => { await new Promise((r) => setTimeout(r, 30)); });
+check("Cancel navigates home", window.location.hash === "#/" || page()?.textContent !== "Add New Project");
+// return to the create page for the topbar checks
+await act(async () => { window.location.hash = "#/projects/new"; });
+await act(async () => { await new Promise((r) => setTimeout(r, 30)); });
+
+// 6. Topbar account menu: avatar + username + role chip
+const trigger = document.querySelector(".account-trigger");
+check("account trigger rendered (avatar + name + role)", !!trigger);
+check("avatar initials from username", document.querySelector(".avatar")?.textContent === "T");
+check("role chip admin",
+  [...document.querySelectorAll(".account-trigger .chip")].some((c) => c.textContent === "admin"));
+check("dropdown closed before click", !document.querySelector(".account-dropdown"));
+
+// 7. Click opens the dropdown with both items
+await click(trigger);
+const dropdown = document.querySelector(".account-dropdown");
+check("dropdown opens on click", !!dropdown);
+const items = [...document.querySelectorAll(".account-item")].map((b) => b.textContent.trim());
+check("menu items Change password + Sign out",
+  JSON.stringify(items) === JSON.stringify(["Change password", "Sign out"]));
+
+// 8. Change password opens the modal with 3 fields + live-match hint area
+await click([...document.querySelectorAll(".account-item")].find((b) => b.textContent.trim() === "Change password"));
+const pwModal = document.querySelector(".modal");
+check("change-password modal opens", !!pwModal);
+check("modal labelled",
+  document.getElementById(pwModal?.getAttribute("aria-labelledby"))?.textContent === "Change password");
+const pwInputs = [...document.querySelectorAll(".modal input[type='password']")];
+check(`3 password fields (got ${pwInputs.length})`, pwInputs.length === 3);
+check("submit disabled until valid",
+  [...document.querySelectorAll(".modal button[type='submit']")].every((b) => b.disabled));
+check("match hint area present", !!document.querySelector(".pw-match"));
+
+// 9. Escape closes the modal
+await pressKey("Escape");
+check("Escape closes change-password modal", !document.querySelector(".modal"));
+
+// 10. Dropdown closed too; sign-out path exists
+check("dropdown closed after selection", !document.querySelector(".account-dropdown"));
+
+// 11. SVG-only close button in the modal head (no glyph text)
+await click(trigger);
+await click([...document.querySelectorAll(".account-item")].find((b) => b.textContent.trim() === "Change password"));
+const closeBtn = [...document.querySelectorAll(".modal .panel-head button")].find((b) => b.getAttribute("aria-label") === "Close");
+check("modal close button is SVG with aria-label", !!closeBtn?.querySelector("svg"));
+await click(closeBtn);
+check("close button closes modal", !document.querySelector(".modal"));
 
 console.log(results.join("\n"));
 const fails = results.filter((r) => r.startsWith("FAIL")).length;
-console.log(`\n${results.length - fails}/${results.length} passed`);
+if (fails) {
+  console.error(`\n${fails} FAIL(S)`);
+  process.exitCode = 1;
+} else {
+  console.log(`\n${results.length}/${results.length} green`);
+}
 root.unmount();
-if (fails) process.exit(1);

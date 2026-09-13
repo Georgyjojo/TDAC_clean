@@ -15,6 +15,7 @@ from app.schemas.project import ProjectCreate
 from app.auth.router import router as auth_router
 from app.portfolio_router import router as portfolio_router
 from app.field_data_router import router as field_data_router
+from app.excel_router import router as excel_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -30,6 +31,7 @@ app = FastAPI(lifespan=lifespan)
 app.include_router(portfolio_router)
 app.include_router(field_data_router)
 app.include_router(auth_router)
+app.include_router(excel_router)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173"],

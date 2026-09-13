@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends
 
-from app.auth.schemas import LoginRequest
+from app.auth.schemas import LoginRequest, ChangePasswordRequest
 from app.schemas.user import UserCreate, UserUpdate
 
 from app.auth.security import (
@@ -174,6 +174,67 @@ async def refresh_access_token(refresh_token: str):
 
     return {
         "access_token": new_access_token,
+        "token_type": "bearer"
+    }
+
+# Change Password (self-service, from the Topbar account menu)
+@router.post("/change-password")
+async def change_password(
+    body: ChangePasswordRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    if body.new_password == body.current_password:
+        raise HTTPException(
+            status_code=400,
+            detail="New password must differ from the current one"
+        )
+
+    # The bearer token already proved the session, but the password is
+    # re-verified so a stolen token cannot silently take over the account.
+    if not verify_password(
+        body.current_password,
+        current_user["hashed_password"],
+    ):
+        raise HTTPException(
+            status_code=401,
+            detail="Current password is incorrect"
+        )
+
+    # Bumping token_gen revokes every session. Fresh tokens with the new
+    # gen are returned so THIS session survives while all others die.
+    new_token_gen = current_user["token_gen"] + 1
+
+    hashed_password = hash_password(body.new_password)
+
+    await database.pool.execute(
+        """
+        UPDATE tdac.users
+        SET hashed_password = $2,
+            token_gen = $3
+        WHERE id = $1
+        """,
+        current_user["id"],
+        hashed_password,
+        new_token_gen,
+    )
+
+    access_token = create_access_token(
+        {
+            "sub": str(current_user["id"]),
+            "token_gen": new_token_gen,
+        }
+    )
+
+    refresh_token = create_refresh_token(
+        {
+            "sub": str(current_user["id"]),
+            "token_gen": new_token_gen,
+        }
+    )
+
+    return {
+        "access_token": access_token,
+        "refresh_token": refresh_token,
         "token_type": "bearer"
     }
 

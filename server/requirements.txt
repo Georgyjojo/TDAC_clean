@@ -11,6 +11,10 @@ asyncpg==0.30.0
 # Request / response validation
 pydantic==2.11.7
 
+# Excel input-sheet parsing (app/excel_parser.py) + multipart uploads
+openpyxl==3.1.5
+python-multipart==0.0.32
+
 
 
 # JWT handling (app/auth/security.py)
@@ -21,5 +25,9 @@ python-dotenv
 
 # Password hashing (app/auth/security.py)
 pwdlib[bcrypt]
-# # Password hashing (app/auth/security.py)
-# pwdlib[argon2]==0.2.1
+
+# --- Testing (server/tests) ---
+# Run with:  cd server && ./venv/bin/python -m pytest
+pytest==9.1.1
+pytest-cov==7.1.0
+httpx==0.28.1  # required by fastapi.testclient

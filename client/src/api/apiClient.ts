@@ -29,7 +29,13 @@ export async function apiClient(
 
   headers.set("Authorization", `Bearer ${accessToken}`);
 
-  if (options.body && !headers.has("Content-Type")) {
+  // FormData must set its own multipart boundary; a forced JSON content
+  // type would corrupt file uploads.
+  if (
+    options.body &&
+    !(options.body instanceof FormData) &&
+    !headers.has("Content-Type")
+  ) {
     headers.set("Content-Type", "application/json");
   }
 
@@ -69,7 +75,13 @@ export async function apiClient(
 
   retryHeaders.set("Authorization", `Bearer ${accessToken}`);
 
-  if (options.body && !retryHeaders.has("Content-Type")) {
+  // FormData must set its own multipart boundary; a forced JSON content
+  // type would corrupt file uploads.
+  if (
+    options.body &&
+    !(options.body instanceof FormData) &&
+    !retryHeaders.has("Content-Type")
+  ) {
     retryHeaders.set("Content-Type", "application/json");
   }
 

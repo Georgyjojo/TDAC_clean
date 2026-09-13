@@ -61,6 +61,15 @@ export function ProjectWorkspacePage() {
     loadProject();
   }, [projectId]);
 
+  // Re-fetches the location list; the reload key lets the effect-driven
+  // loader and the post-import refresh share one path without
+  // duplicating the fetch in multiple callbacks.
+  const [locasReloadKey, setLocasReloadKey] = useState(0);
+
+  function loadLocasAgain() {
+    setLocasReloadKey((key) => key + 1);
+  }
+
   useEffect(() => {
     if (!projectId) {
       return;
@@ -92,7 +101,7 @@ export function ProjectWorkspacePage() {
     }
 
     loadLocas();
-  }, [projectId]);
+  }, [projectId, locasReloadKey]);
 
   // Called after a new location is created from the Overview tab so the
   // Field Data location list is available immediately, without an
@@ -168,6 +177,7 @@ export function ProjectWorkspacePage() {
           addingLoca={addingLoca}
           onAddingLocaChange={setAddingLoca}
           onLocaCreated={handleLocaCreated}
+          onLocasImported={loadLocasAgain}
         />
       ) : activeTab === "field" ? (
         <FieldData

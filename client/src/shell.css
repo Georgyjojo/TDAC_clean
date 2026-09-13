@@ -707,6 +707,45 @@
   background: var(--err-bg);
 }
 
+/* Password change form (Topbar account menu modal) */
+.pw-form .warning-note {
+  margin: 0 0 4px 0;
+}
+
+.pw-form label {
+  display: block;
+}
+
+.pw-form .modal-input {
+  width: 100%;
+  margin: 6px 0 14px 0;
+}
+
+.pw-match {
+  min-height: 18px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.pw-match-ok {
+  color: var(--ok);
+}
+
+.pw-match-err {
+  color: var(--err);
+}
+
+.pw-success {
+  margin: 0;
+  padding: 14px;
+  background: var(--ok-bg);
+  border: 1px solid color-mix(in srgb, var(--ok) 25%, transparent);
+  border-radius: var(--radius-md);
+  color: var(--ok);
+  font-size: 13px;
+  font-weight: 600;
+}
+
 /* the below hides the search bar and help button when the screen width becomes below the mentioned. it has to be updated once connected with the backend */
 @media (max-width: 900px){
   .topbar-search{
@@ -781,6 +820,69 @@
   font-size: 13px;
   border-radius: 6px;
 }
+
+/* Success-tone companion to .warning-note for import confirmations */
+.import-note {
+  padding: 10px 12px;
+  border-left: 4px solid var(--ok);
+  background: var(--ok-bg);
+  color: var(--ok);
+  font-size: 13px;
+  border-radius: 6px;
+  margin: 10px 0;
+}
+
+/* Row of actions inside a page head (Import + Cancel) */
+.page-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* Chosen-workbook chip shown by ExcelFilePicker after a successful parse */
+.excel-file-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px 6px 12px;
+  background: var(--accent-soft);
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
+  border-radius: 999px;
+  max-width: 320px;
+}
+
+.excel-file-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--accent-hover);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.excel-file-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--accent-hover);
+  cursor: pointer;
+}
+
+.excel-file-remove:hover {
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+}
+
 .grid + .grid {
   margin-top: 13px;
 }

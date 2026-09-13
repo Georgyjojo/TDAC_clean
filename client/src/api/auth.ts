@@ -76,6 +76,40 @@ export async function getHome(): Promise<HomeResponse> {
 }
 
 /**
+ * Change the signed-in user's own password.
+ *
+ * The server revokes every session on success and returns a fresh token
+ * pair; the caller stores it so this session survives.
+ */
+export async function changePassword(
+  currentPassword: string,
+  newPassword: string,
+  confirmPassword: string
+): Promise<LoginResponse> {
+  const response = await apiClient("/api/auth/change-password", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      current_password: currentPassword,
+      new_password: newPassword,
+      confirm_password: confirmPassword,
+    }),
+  });
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => null);
+
+    throw new Error(
+      data?.detail || "Unable to change password"
+    );
+  }
+
+  return response.json();
+}
+
+/**
  * Log out the current authenticated session.
  *
  * The actual token removal is handled by AuthContext/token.ts.
