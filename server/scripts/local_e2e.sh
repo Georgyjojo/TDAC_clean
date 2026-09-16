@@ -1,5 +1,8 @@
 #!/bin/sh
-# Local end-to-end proof against real Postgres on Termux.
+# Local end-to-end proof against a real Postgres.
+# Runs against the ISOLATED test database: set DB_NAME=tdacdb in server/.env
+# (created once by scripts/init_local_db.sql) before starting uvicorn, so
+# test rows never land in the real ags42_data. Restore DB_NAME afterwards.
 # Assumes uvicorn is already running on :8000 (background terminal task).
 cd "$(dirname "$0")/.." || exit 1
 mkdir -p work

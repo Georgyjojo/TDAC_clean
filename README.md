@@ -69,11 +69,11 @@ The connection lives in `server/.env` (see `server/env.sample` for the keys: DB_
 Local Termux quick setup (Postgres already installed via `pkg install postgresql`):
 
 ```bash
-psql -h 127.0.0.1 -U postgres -f server/scripts/init_local_db.sql   # creates tdacdb + all tables (idempotent)
+psql -h 127.0.0.1 -U postgres -f server/scripts/init_local_db.sql   # creates the isolated tdacdb TEST database + all tables (idempotent)
 cd server && python3 scripts/seed_admin.py                           # admin / admin@123
 ```
 
-Make sure the `ags42_data` database mentioned in older docs is NOT used — this app owns `tdacdb`; `ags42_data` belongs to the AGSValidator project.
+Two databases, to be exact: the real development database is `ags42_data` (the Prerequisites line above — the same one the AGS projects read). `tdacdb` is the isolated scratch database created by `init_local_db.sql` for the `scripts/local_e2e*.sh` end-to-end tests — point `DB_NAME` at `tdacdb` only while running those, so test rows never land in `ags42_data`.
 
 ### Step 5 — Run the backend
 
