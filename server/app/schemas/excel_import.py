@@ -18,6 +18,7 @@ schemas/field_data.py); importing introduces no new database columns:
 """
 
 from datetime import date
+from decimal import Decimal
 from typing import List, Optional
 
 from pydantic import BaseModel, Field
@@ -33,31 +34,35 @@ class ProjectInfoData(BaseModel):
     project_id: Optional[str] = None
     start_date: Optional[date] = None
     end_date: Optional[date] = None
-    final_depth: Optional[float] = None
+    # Decimal, not float: JSON numbers are parsed to their exact decimal
+    # digits, so 5.8 stays 5.8 through the round trip and asyncpg stores
+    # exactly that in NUMERIC columns (a float would land as
+    # 5.79999999999999982236431605997495353221893310546875).
+    final_depth: Optional[Decimal] = None
 
 
 class BorelogRow(BaseModel):
-    depth_from: float
-    depth_to: float
+    depth_from: Decimal
+    depth_to: Decimal
     soil_description: Optional[str] = None
     sand_clay: Optional[str] = None
 
 
 class RockProfileRow(BaseModel):
-    depth_from: float
-    depth_to: float
+    depth_from: Decimal
+    depth_to: Decimal
     rock_description: Optional[str] = None
-    recovery: Optional[float] = None
-    rqd: Optional[float] = None
+    recovery: Optional[Decimal] = None
+    rqd: Optional[Decimal] = None
     remark: Optional[str] = None
 
 
 class SPTImportRow(BaseModel):
-    spt_depth: float
-    blows_15: Optional[float] = None
-    blows_30: Optional[float] = None
-    blows_45: Optional[float] = None
-    n_value: Optional[float] = None
+    spt_depth: Decimal
+    blows_15: Optional[Decimal] = None
+    blows_30: Optional[Decimal] = None
+    blows_45: Optional[Decimal] = None
+    n_value: Optional[Decimal] = None
 
 
 class ImportedWorkbook(BaseModel):
@@ -85,7 +90,7 @@ class ProjectExcelImport(BaseModel):
     borehole_type: str = "BH"
     start_date: Optional[date] = None
     end_date: Optional[date] = None
-    final_depth: Optional[float] = None
+    final_depth: Optional[Decimal] = None
 
     workbook: ImportedWorkbook
 

@@ -2,6 +2,7 @@
 # Local end-to-end proof against real Postgres on Termux.
 # Assumes uvicorn is already running on :8000 (background terminal task).
 cd "$(dirname "$0")/.." || exit 1
+mkdir -p work
 
 echo "== root + db probe =="
 curl -s http://127.0.0.1:8000/

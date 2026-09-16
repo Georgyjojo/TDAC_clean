@@ -11,7 +11,11 @@ import pytest
 
 from app.auth import security
 from app.auth.schemas import LoginRequest
-from app.auth.security import create_access_token, decode_access_token
+from app.auth.security import (
+    SECRET_KEY,
+    create_access_token,
+    decode_access_token,
+)
 
 APP_DIR = Path(__file__).resolve().parent.parent / "app"
 
@@ -77,23 +81,25 @@ class TestKnownIssuesPinned:
         t2 = create_access_token({"sub": "5", "token_gen": 0})
         assert t1 != t2
 
-    def test_forged_token_with_committed_secret_is_accepted(self):
-        """DOCUMENTS K5 root cause (external report #5 'tampered token got
-        200'): with SECRET_KEY committed in the repo, anyone can sign an
-        arbitrary payload and the server accepts it as a valid admin token.
-        This test will START FAILING (correctly) once the secret is
-        externalized — that failure is the reminder to flip it to the
-        negative assertion."""
+    def test_forged_token_with_known_secret_is_rejected(self):
+        """K5 fixed: SECRET_KEY is externalized to JWT_SECRET_KEY, so the
+        old committed value can no longer mint valid admin tokens. A
+        token signed with the historical development secret must fail
+        verification against the deployed secret."""
         from jose import jwt
+        from jose.exceptions import JWTError
 
-        from app.auth.security import SECRET_KEY
+        if SECRET_KEY == "temporary-secret-key":
+            pytest.fail(
+                "JWT_SECRET_KEY leaked out of the environment (missing from "
+                ".env): the app fell back to the committed development "
+                "secret. Set JWT_SECRET_KEY before running the suite."
+            )
 
         forged = jwt.encode(
             {"sub": "1", "token_gen": 0, "type": "access", "exp": 9999999999},
-            SECRET_KEY,
+            "temporary-secret-key",
             algorithm="HS256",
         )
-        payload = decode_access_token(forged)
-        assert payload["sub"] == "1"
-        if SECRET_KEY != "temporary-secret-key":
-            pytest.fail("secret externalized: invert this test to assert forgery is REJECTED")
+        with pytest.raises(JWTError):
+            decode_access_token(forged)

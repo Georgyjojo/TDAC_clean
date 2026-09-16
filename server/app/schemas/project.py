@@ -1,4 +1,7 @@
 from datetime import date
+from decimal import Decimal
+
+from typing import Optional
 
 from pydantic import BaseModel, Field
 
@@ -15,7 +18,7 @@ class ProjectCreate(BaseModel):
     start_date: date
     end_date: date
 
-    final_depth: float = Field(gt=0)
+    final_depth: Decimal = Field(gt=0)
 
 class ProjectUpdate(BaseModel):
     project_name: str = Field(min_length=1)
@@ -27,4 +30,4 @@ class LocaCreate(BaseModel):
     loca_type: str =Field(min_length=1)
     start_date: date | None = None
     end_date: date | None = None
-    final_depth: float | None = Field(default=None,gt = 0)
+    final_depth: Optional[Decimal] = Field(default=None, gt=0)

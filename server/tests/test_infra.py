@@ -61,8 +61,15 @@ class TestDatabaseModule:
     def test_connect_defaults_without_env(self, fake_asyncpg, monkeypatch):
         import importlib
 
+        import dotenv
+
         for var in ("DB_HOST", "DB_PORT", "DB_NAME", "DB_USER", "DB_PASSWORD"):
             monkeypatch.delenv(var, raising=False)
+        # The module re-runs load_dotenv() on reload, which walks up from
+        # app/database.py, finds server/.env and re-sets DB_HOST —
+        # defeating the delenv above. This test is about the no-env
+        # DEFAULTS, so the .env loader is neutralized for the reload.
+        monkeypatch.setattr(dotenv, "load_dotenv", lambda *a, **k: False)
         importlib.reload(database)
         asyncio.run(database.connect_to_database())
         cfg = fake_asyncpg["config"]
