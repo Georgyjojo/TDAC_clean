@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { changePassword } from "../api/auth";
 import { setTokens } from "../api/token";
-import { LOGIN } from "../routes";
+import { ADMIN_USERS, LOGIN } from "../routes";
 
 const TITLES: Record<string, string> = {
   "/": "Portfolio Centre",
@@ -74,6 +74,15 @@ export function Topbar() {
       <div className="topbar-right">
       <input className="search topbar-search" placeholder="Search projects, locations, samples..."
         aria-label="Search"/>
+        {user?.role === "admin" && (
+          <button
+            type="button"
+            className="btn"
+            onClick={() => navigate(ADMIN_USERS)}
+          >
+            User Management
+          </button>
+        )}
       <button type="button" className="btn">Help</button>
         {user ? (
           <div className="account-menu" ref={menuRef}>

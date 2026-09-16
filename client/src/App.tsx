@@ -1,12 +1,14 @@
+import { UserManagementPage } from "./pages/UserManagement";
+import { AdminRoute } from "./auth/AdminRoute";
 import { HashRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AppShell } from "./components/AppShell";
 import { PortfolioPage } from "./pages/Home";
 import { LoginPage } from "./pages/Login";
 import { ProjectWorkspacePage } from "./pages/ProjectWorkspace";
 import { ProtectedRoute } from "./auth/ProtectedRoute";
-import { HOME, LOGIN, PROJECT } from "./routes";
+import { ADMIN_USERS, HOME, LOGIN, PROJECT } from "./routes";
 import {CreateProjectPage} from "./pages/CreateProject";
-// @ts-expect-error CSS imports are handled by the bundler at runtime.
+
 import "./shell.css";
 
 export default function App() {
@@ -23,6 +25,10 @@ export default function App() {
             <Route index element={<PortfolioPage />} />
             <Route path="/projects/new" element={<CreateProjectPage />} />
             <Route path={PROJECT} element={<ProjectWorkspacePage />} />
+            <Route
+              path={ADMIN_USERS}
+              element={<UserManagementPage />}
+            />
           </Route>
         </Route>
 
