@@ -1849,3 +1849,458 @@
     grid-template-columns: 1fr;
   }
 }
+/* =========================================================
+   BOREHOLE / DRILLING
+   ========================================================= */
+
+/* ---------------------------------------------------------
+   Scrollable records table
+   --------------------------------------------------------- */
+
+.borehole-records-scroll {
+  max-height: 360px;
+  overflow-y: auto;
+  overflow-x: auto;
+
+  border: 1px solid var(--border, #d9e0e5);
+  border-radius: 8px;
+
+  background: #ffffff;
+}
+
+/* Keep the table header visible while scrolling */
+.borehole-records-scroll thead th {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+
+  background: #eef3f7;
+}
+
+/* Prevent the table from becoming excessively compressed */
+.borehole-records-scroll table {
+  min-width: 760px;
+  margin: 0;
+}
+
+/* =========================================================
+   BOREHOLE / SOIL PROFILE
+   ========================================================= */
+
+.borehole-profile-panel {
+  margin-top: 14px;
+  padding: 14px;
+
+  border: 1px solid var(--border, #d9e0e5);
+  border-radius: 8px;
+
+  background: #ffffff;
+}
+
+/* ---------------------------------------------------------
+   Profile header
+   --------------------------------------------------------- */
+
+.borehole-profile-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.borehole-profile-header .panel-subtitle {
+  margin: 0 0 3px;
+}
+
+.borehole-profile-header .page-sub {
+  margin: 0;
+}
+
+/* ---------------------------------------------------------
+   Total depth indicator
+   --------------------------------------------------------- */
+
+.profile-depth-summary {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+
+  font-size: 9px;
+  font-weight: 600;
+
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+
+  color: var(--muted, #667085);
+}
+
+.profile-depth-summary strong {
+  margin-top: 2px;
+
+  font-size: 14px;
+  font-weight: 700;
+
+  color: var(--text, #1f2933);
+}
+
+/* =========================================================
+   PROFILE CHART
+   ========================================================= */
+
+.borehole-profile-chart {
+  display: grid;
+
+  grid-template-columns: 70px minmax(0, 1fr);
+
+  /*
+   * Fixed visual height.
+   * Depth itself is proportional inside this area.
+   */
+  height: 520px;
+
+  border: 1px solid var(--border, #d9e0e5);
+  border-radius: 7px;
+
+  overflow: hidden;
+
+  background: #f8fafb;
+}
+
+/* =========================================================
+   DEPTH SCALE
+   ========================================================= */
+
+.profile-scale {
+  position: relative;
+
+  border-right: 1px solid #cbd5dc;
+
+  background: #f7f9fa;
+}
+
+.profile-scale-title {
+  position: absolute;
+
+  top: 9px;
+  left: 0;
+
+  width: 100%;
+
+  text-align: center;
+
+  font-size: 10px;
+  font-weight: 700;
+
+  color: #344054;
+
+  z-index: 10;
+}
+
+.profile-scale-title span {
+  display: block;
+
+  margin-top: 1px;
+
+  font-size: 9px;
+  font-weight: 500;
+}
+
+/* ---------------------------------------------------------
+   Individual depth tick
+   --------------------------------------------------------- */
+
+.profile-scale-tick {
+  position: absolute;
+
+  left: 0;
+
+  width: 100%;
+  height: 1px;
+
+  transform: translateY(-50%);
+}
+
+/* Depth number */
+.profile-scale-tick span {
+  position: absolute;
+
+  left: 0;
+
+  width: 42px;
+
+  text-align: right;
+
+  transform: translateY(-50%);
+
+  font-size: 9px;
+  font-weight: 600;
+
+  color: #475467;
+}
+
+/* Tick line */
+.profile-scale-tick i {
+  position: absolute;
+
+  right: 0;
+
+  width: 16px;
+  height: 1px;
+
+  background: #475467;
+}
+
+/* =========================================================
+   STRATIGRAPHIC PROFILE AREA
+   ========================================================= */
+
+.profile-strata {
+  position: relative;
+
+  min-width: 0;
+  height: 100%;
+
+  overflow: hidden;
+
+  /*
+   * Fine horizontal grid lines help visually read depth.
+   */
+  background:
+    repeating-linear-gradient(
+      to bottom,
+      rgba(71, 85, 105, 0.08) 0,
+      rgba(71, 85, 105, 0.08) 1px,
+      transparent 1px,
+      transparent 20px
+    );
+}
+
+/* =========================================================
+   GEOLOGICAL LAYERS
+   ========================================================= */
+
+.profile-layer {
+  position: absolute;
+
+  left: 0;
+  right: 0;
+
+  box-sizing: border-box;
+
+  border-top: 1px solid rgba(31, 41, 55, 0.28);
+  border-bottom: 1px solid rgba(31, 41, 55, 0.28);
+
+  overflow: hidden;
+
+  transition:
+    filter 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.profile-layer:hover {
+  filter: brightness(0.97);
+
+  box-shadow:
+    inset 0 0 0 1px rgba(31, 41, 55, 0.18);
+}
+
+/* =========================================================
+   LAYER CONTENT
+   ========================================================= */
+
+.profile-layer-content {
+  display: flex;
+
+  align-items: center;
+
+  gap: 12px;
+
+  width: 100%;
+  height: 100%;
+
+  padding: 6px 14px;
+
+  box-sizing: border-box;
+}
+
+.profile-layer-content strong {
+  font-size: 11px;
+  font-weight: 700;
+
+  line-height: 1.2;
+
+  color: #17212b;
+
+  overflow-wrap: anywhere;
+}
+
+/* ---------------------------------------------------------
+   Depth interval shown inside layer
+   --------------------------------------------------------- */
+
+.profile-layer-depth {
+  flex: 0 0 auto;
+
+  font-size: 9px;
+  font-weight: 600;
+
+  white-space: nowrap;
+
+  color: #344054;
+}
+
+/* ---------------------------------------------------------
+   Material badge
+   --------------------------------------------------------- */
+
+.profile-material {
+  margin-left: auto;
+
+  flex: 0 0 auto;
+
+  padding: 3px 9px;
+
+  border-radius: 999px;
+
+  background: rgba(255, 255, 255, 0.82);
+
+  border: 1px solid rgba(31, 41, 55, 0.12);
+
+  font-size: 8px;
+  font-weight: 700;
+
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+
+  color: #344054;
+
+  white-space: nowrap;
+}
+
+/* =========================================================
+   DISTINCT SOIL / ROCK COLOURS
+   ========================================================= */
+
+/*
+ * Layer 0 — Fill / Sand
+ */
+.profile-layer-0 {
+  background-color: #f5d77a;
+
+  background-image:
+    radial-gradient(
+      rgba(130, 92, 20, 0.25) 1px,
+      transparent 1px
+    );
+
+  background-size: 9px 9px;
+}
+
+/*
+ * Layer 1 — Clay
+ */
+.profile-layer-1 {
+  background-color: #6fc4e5;
+
+  background-image:
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 7px,
+      rgba(20, 90, 120, 0.14) 8px
+    );
+}
+
+/*
+ * Layer 2 — Silt
+ */
+.profile-layer-2 {
+  background-color: #dcbc8f;
+
+  background-image:
+    radial-gradient(
+      rgba(120, 82, 35, 0.22) 1px,
+      transparent 1px
+    );
+
+  background-size: 8px 8px;
+}
+
+/*
+ * Layer 3 — Weathered rock
+ */
+.profile-layer-3 {
+  background-color: #9fc9a9;
+
+  background-image:
+    repeating-linear-gradient(
+      45deg,
+      transparent,
+      transparent 8px,
+      rgba(45, 100, 55, 0.12) 9px
+    );
+}
+
+/*
+ * Layer 4 — Highly weathered rock
+ */
+.profile-layer-4 {
+  background-color: #c7b2e3;
+
+  background-image:
+    repeating-linear-gradient(
+      -45deg,
+      transparent,
+      transparent 9px,
+      rgba(80, 50, 110, 0.13) 10px
+    );
+}
+
+/*
+ * Layer 5 — Slightly / moderately weathered rock
+ */
+.profile-layer-5 {
+  background-color: #aeb7bf;
+
+  background-image:
+    radial-gradient(
+      rgba(55, 65, 75, 0.22) 1px,
+      transparent 1px
+    );
+
+  background-size: 10px 10px;
+}
+
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
+
+@media (max-width: 700px) {
+  .borehole-profile-chart {
+    grid-template-columns: 52px minmax(0, 1fr);
+
+    height: 440px;
+  }
+
+  .profile-layer-content {
+    gap: 6px;
+
+    padding: 5px 8px;
+  }
+
+  .profile-layer-depth {
+    display: none;
+  }
+
+  .profile-layer-content strong {
+    font-size: 10px;
+  }
+
+  .profile-material {
+    padding: 2px 6px;
+
+    font-size: 7px;
+  }
+}
