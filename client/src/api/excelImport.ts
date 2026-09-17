@@ -9,14 +9,11 @@ import { apiClient } from "./apiClient";
  */
 
 export interface ProjectInfoData {
-  project_type: string | null;
+  project_id: string;
+  project_name: string;
   project_location: string | null;
-  client_name: string | null;
-  borehole_number: string | null;
-  project_id: string | null;
-  start_date: string | null;
-  end_date: string | null;
-  final_depth: number | null;
+  project_client: string | null;
+  workbook: ImportedWorkbook;
 }
 
 export interface BorelogRow {

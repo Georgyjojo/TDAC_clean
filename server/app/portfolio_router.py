@@ -7,9 +7,19 @@ from app.portfolio_service import (
     get_project,
     create_project,
     create_project_loca,
+    create_project_metadata,
+    get_project_id_preview,
     update_project,
+    allocate_project_id,
+    get_project_metadata,
+    update_project_overview,
 )
-from app.schemas.project import ProjectCreate, ProjectUpdate, LocaCreate
+from app.schemas.project import (
+    ProjectCreate,
+    ProjectUpdate,
+    LocaCreate,
+    ProjectOverviewUpdate
+)
 
 
 router = APIRouter(
@@ -24,19 +34,67 @@ async def portfolio_summary(
 ):
     return await get_portfolio_summary()
 
+@router.get("/projects/next-id")
+async def get_next_project_id(
+    current_user: dict = Depends(get_current_user),
+):
+    try:
+        project_id = await get_project_id_preview()
+
+        return {
+            "project_id": project_id
+        }
+
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Unable to generate project ID: {exc}",
+        )
 
 @router.post("/projects")
 async def create_project_record(
     project: ProjectCreate,
     current_user: dict = Depends(get_current_user),
 ):
+    project_number = project.project_id
+    if project_number.upper() == "AUTO":
+        project_number = await allocate_project_id()
     try:
         created_project = await create_project(
-            project_number=project.project_number,
-            project_name=project.project_name,
-            country_region=project.country_region,
-            client=project.client,
+            project_number = project_number,
+            project_name = project.project_name,
+            country_region = project.project_location,
+            client = project.project_client,
+            consultant_name = project.consultant_name,
+            contractor_name = project.contractor_name
         )
+
+        if project.metadata is not None:
+            await create_project_metadata(
+                project_id=project_number,
+                road_reference=project.metadata.road_reference,
+                chainage_text=project.metadata.chainage_text,
+                structure_reference=project.metadata.structure_reference,
+                selected_boreholes=project.metadata.selected_boreholes,
+                report_type=project.metadata.report_type,
+                report_title=project.metadata.report_title,
+                report_volume_title=project.metadata.report_volume_title,
+                document_reference=project.metadata.document_reference,
+                revision=project.metadata.revision,
+                report_date=project.metadata.report_date,
+                issue_status=project.metadata.issue_status,
+                tdac_company_name=project.metadata.tdac_company_name,
+                groundwater_basis=project.metadata.groundwater_basis,
+                design_standard_basis=project.metadata.design_standard_basis,
+                factor_of_safety_basis=project.metadata.factor_of_safety_basis,
+                load_combination_basis=project.metadata.load_combination_basis,
+                construction_verification_requirement=(
+                    project.metadata.construction_verification_requirement
+                ),
+                pile_load_test_requirement=(
+                    project.metadata.pile_load_test_requirement
+                ),
+            )
 
     except Exception as error:
         error_text = str(error)
@@ -64,6 +122,60 @@ async def create_project_record(
         },
     }
 
+@router.patch("/projects/{project_id}/overview")
+async def update_project_overview_endpoint(
+    project_id: str,
+    project: ProjectOverviewUpdate,
+    current_user: dict = Depends(get_current_user),
+):
+    try:
+        updated_project = await update_project_overview(
+            project_id=project_id,
+            project_name=project.project_name,
+            project_location=project.project_location,
+            project_client=project.project_client,
+            consultant_name=project.consultant_name,
+            contractor_name=project.contractor_name,
+            road_reference=project.road_reference,
+            chainage_text=project.chainage_text,
+            structure_reference=project.structure_reference,
+            selected_boreholes=project.selected_boreholes,
+            report_type=project.report_type,
+            report_title=project.report_title,
+            report_volume_title=project.report_volume_title,
+            document_reference=project.document_reference,
+            revision=project.revision,
+            report_date=project.report_date,
+            issue_status=project.issue_status,
+            tdac_company_name=project.tdac_company_name,
+            groundwater_basis=project.groundwater_basis,
+            design_standard_basis=project.design_standard_basis,
+            factor_of_safety_basis=project.factor_of_safety_basis,
+            load_combination_basis=project.load_combination_basis,
+            construction_verification_requirement=(
+                project.construction_verification_requirement
+            ),
+            pile_load_test_requirement=(
+                project.pile_load_test_requirement
+            ),
+        )
+
+        if updated_project is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Project not found.",
+            )
+
+        return dict(updated_project)
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Unable to update project overview: {exc}",
+        )
+    
 @router.get("/projects/{project_id}")
 async def project_record(
     project_id: str,
@@ -82,8 +194,34 @@ async def project_record(
         "project_name": project["PROJ_NAME"],
         "project_location": project["PROJ_LOC"],
         "project_client": project["PROJ_CLNT"],
+        "consultant_name": project["PROJ_ENG"],
+        "contractor_name": project["PROJ_CONT"],
     }
 
+@router.get("/projects/{project_id}/metadata")
+async def get_project_metadata_endpoint(
+    project_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    try:
+        metadata = await get_project_metadata(project_id)
+
+        if metadata is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Project metadata not found.",
+            )
+
+        return dict(metadata)
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Unable to load project metadata: {exc}",
+        )
+    
 @router.patch("/projects/{project_id}")
 async def update_project_record(
     project_id: str,
