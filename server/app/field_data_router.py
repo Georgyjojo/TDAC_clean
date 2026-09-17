@@ -23,6 +23,7 @@ from app.field_data_service import (
     get_sampling_records,
     create_sampling_record,
     update_sampling_record,
+    get_project_samples,
 )
 
 
@@ -263,6 +264,7 @@ async def sampling_records(
         "loca_id": loca_id,
         "records": [
             {
+                "sample_id": row["sample_id"],
                 "depth_from": row["depth_from"],
                 "depth_to": row["depth_to"],
                 "rock_description": row["rock_description"],
@@ -333,6 +335,25 @@ async def update_sampling(
         "record": updated,
     }
 
+@router.get("/samples")
+async def project_samples(
+    project_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    rows = await get_project_samples(project_id)
+
+    return {
+        "project_id": project_id,
+        "samples": [
+            {
+                "sample_id": row["sample_id"],
+                "loca_id": row["loca_id"],
+                "depth_from": row["depth_from"],
+                "depth_to": row["depth_to"],
+            }
+            for row in rows
+        ],
+    }
 
 # ---------------------------------------------------------------------------
 # Groundwater

@@ -2304,3 +2304,23 @@
     font-size: 7px;
   }
 }
+
+.sampling-view-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.sampling-view-tab {
+  padding: 8px 18px;
+  border: 1px solid #ccc;
+  background: #f5f5f5;
+  cursor: pointer;
+  border-radius: 4px 4px 0 0;
+}
+
+.sampling-view-tab.active {
+  background: #fff;
+  font-weight: 600;
+  border-bottom: 2px solid #333;
+}

@@ -40,6 +40,8 @@ export function SamplingModule({ projectId, locaId }: SamplingModuleProps) {
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
+  const [activeView, setActiveView] = useState<"soil" | "rock">("rock");
+
   useEffect(() => {
     let cancelled = false;
 
@@ -312,16 +314,43 @@ export function SamplingModule({ projectId, locaId }: SamplingModuleProps) {
           <p>No sampling/coring data available for this location.</p>
         </div>
       ) : (
+        <>
+        <div className="sampling-view-tabs">
+          <button
+            type="button"
+            className={`sampling-view-tab ${activeView == "soil" ? "active":""}`}
+            onClick={()=> setActiveView("soil")}
+          >
+            Soil
+          </button>
+          <button
+            type="button"
+            className={`sampling-view-tab ${activeView === "rock" ? "active" : ""}`}
+            onClick={() => setActiveView("rock")}
+          >
+            Rock
+          </button>
+        </div>
         <div className="table-scroll">
           <table className="dtable">
             <thead>
               <tr>
+                <th>Sample ID</th>
                 <th>Depth From (m)</th>
                 <th>Depth To (m)</th>
-                <th>Rock Description</th>
-                <th>Recovery</th>
-                <th>RQD</th>
-                <th>Remark</th>
+
+                {activeView === "soil" ? (
+                  <>
+                    <th>Rock Description</th>
+                    <th>Remark</th>
+                  </>
+                ) : (
+                  <>
+                    <th>Recovery</th>
+                    <th>RQD</th>
+                  </>
+                )}
+
                 <th>Actions</th>
               </tr>
             </thead>
@@ -332,124 +361,154 @@ export function SamplingModule({ projectId, locaId }: SamplingModuleProps) {
                 return (
                   <tr key={record.depth_from}>
                     {isEditing && draft ? (
-                      <>
-                        <td>
-                          <input
-                            className="modal-input"
-                            type="number"
-                            step="0.01"
-                            value={draft.depth_from}
-                            onChange={(event) =>
-                              setDraft({
-                                ...draft,
-                                depth_from: Number(event.target.value),
-                              })
-                            }
-                          />
-                        </td>
-                        <td>
-                          <input
-                            className="modal-input"
-                            type="number"
-                            step="0.01"
-                            value={draft.depth_to ?? ""}
-                            onChange={(event) =>
-                              setDraft({
-                                ...draft,
-                                depth_to:
-                                  event.target.value === ""
-                                    ? null
-                                    : Number(event.target.value),
-                              })
-                            }
-                          />
-                        </td>
-                        <td>
-                          <input
-                            className="modal-input"
-                            type="text"
-                            value={draft.rock_description ?? ""}
-                            onChange={(event) =>
-                              setDraft({
-                                ...draft,
-                                rock_description: event.target.value,
-                              })
-                            }
-                          />
-                        </td>
-                        <td>
-                          <input
-                            className="modal-input"
-                            type="number"
-                            step="0.01"
-                            value={draft.recovery ?? ""}
-                            onChange={(event) =>
-                              setDraft({
-                                ...draft,
-                                recovery:
-                                  event.target.value === ""
-                                    ? null
-                                    : Number(event.target.value),
-                              })
-                            }
-                          />
-                        </td>
-                        <td>
-                          <input
-                            className="modal-input"
-                            type="number"
-                            step="0.01"
-                            value={draft.rqd ?? ""}
-                            onChange={(event) =>
-                              setDraft({
-                                ...draft,
-                                rqd:
-                                  event.target.value === ""
-                                    ? null
-                                    : Number(event.target.value),
-                              })
-                            }
-                          />
-                        </td>
-                        <td>
-                          <input
-                            className="modal-input"
-                            type="text"
-                            value={draft.remark ?? ""}
-                            onChange={(event) =>
-                              setDraft({ ...draft, remark: event.target.value })
-                            }
-                          />
-                        </td>
-                        <td>
-                          <div className="actions">
-                            <button
-                              type="button"
-                              className="btn btn-sm btn-primary"
-                              disabled={saving}
-                              onClick={() => saveEdit(record.depth_from)}
-                            >
-                              {saving ? "Saving…" : "Save"}
-                            </button>
-                            <button
-                              type="button"
-                              className="btn btn-sm"
-                              disabled={saving}
-                              onClick={cancelEdit}
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        </td>
-                      </>
+                        <>
+                          <td className="sample-id-cell">
+                            {record.sample_id || "—"}
+                          </td>
+
+                          <td>
+                            <input
+                              className="modal-input"
+                              type="number"
+                              step="0.01"
+                              value={draft.depth_from}
+                              onChange={(event) =>
+                                setDraft({
+                                  ...draft,
+                                  depth_from: Number(event.target.value),
+                                })
+                              }
+                            />
+                          </td>
+
+                          <td>
+                            <input
+                              className="modal-input"
+                              type="number"
+                              step="0.01"
+                              value={draft.depth_to ?? ""}
+                              onChange={(event) =>
+                                setDraft({
+                                  ...draft,
+                                  depth_to:
+                                    event.target.value === ""
+                                      ? null
+                                      : Number(event.target.value),
+                                })
+                              }
+                            />
+                          </td>
+
+                          {activeView === "soil" ? (
+                            <>
+                              <td>
+                                <input
+                                  className="modal-input"
+                                  type="text"
+                                  value={draft.rock_description ?? ""}
+                                  onChange={(event) =>
+                                    setDraft({
+                                      ...draft,
+                                      rock_description: event.target.value,
+                                    })
+                                  }
+                                />
+                              </td>
+
+                              <td>
+                                <input
+                                  className="modal-input"
+                                  type="text"
+                                  value={draft.remark ?? ""}
+                                  onChange={(event) =>
+                                    setDraft({ ...draft, remark: event.target.value })
+                                  }
+                                />
+                              </td>
+                            </>
+                          ) : (
+                            <>
+                              <td>
+                                <input
+                                  className="modal-input"
+                                  type="number"
+                                  step="0.01"
+                                  value={draft.recovery ?? ""}
+                                  onChange={(event) =>
+                                    setDraft({
+                                      ...draft,
+                                      recovery:
+                                        event.target.value === ""
+                                          ? null
+                                          : Number(event.target.value),
+                                    })
+                                  }
+                                />
+                              </td>
+
+                              <td>
+                                <input
+                                  className="modal-input"
+                                  type="number"
+                                  step="0.01"
+                                  value={draft.rqd ?? ""}
+                                  onChange={(event) =>
+                                    setDraft({
+                                      ...draft,
+                                      rqd:
+                                        event.target.value === ""
+                                          ? null
+                                          : Number(event.target.value),
+                                    })
+                                  }
+                                />
+                              </td>
+                            </>
+                          )}
+
+                          <td>
+                            <div className="actions">
+                              <button
+                                type="button"
+                                className="btn btn-sm btn-primary"
+                                disabled={saving}
+                                onClick={() => saveEdit(record.depth_from)}
+                              >
+                                {saving ? "Saving…" : "Save"}
+                              </button>
+
+                              <button
+                                type="button"
+                                className="btn btn-sm"
+                                disabled={saving}
+                                onClick={cancelEdit}
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </td>
+                        </>
                     ) : (
                       <>
+                        <td className="sample-id-cell">
+                          {record.sample_id || "—"}
+                        </td>
+
                         <td className="num">{formatNumber(record.depth_from)}</td>
+
                         <td className="num">{formatNumber(record.depth_to)}</td>
-                        <td>{record.rock_description || "—"}</td>
-                        <td className="num">{formatNumber(record.recovery)}</td>
-                        <td className="num">{formatNumber(record.rqd)}</td>
-                        <td>{record.remark || "—"}</td>
+
+                        {activeView === "soil" ? (
+                          <>
+                            <td>{record.rock_description || "—"}</td>
+                            <td>{record.remark || "—"}</td>
+                          </>
+                        ) : (
+                          <>
+                            <td className="num">{formatNumber(record.recovery)}</td>
+                            <td className="num">{formatNumber(record.rqd)}</td>
+                          </>
+                        )}
                         <td>
                           <button
                             type="button"
@@ -473,6 +532,7 @@ export function SamplingModule({ projectId, locaId }: SamplingModuleProps) {
             </p>
           )}
         </div>
+        </>
       )}
     </div>
   );

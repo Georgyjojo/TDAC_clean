@@ -324,8 +324,10 @@ async def get_sampling_records(project_id: str, loca_id: str):
                 geol_desc."GEOL_DESC" AS rock_description,
                 c."CORE_PREC" AS recovery,
                 c."CORE_RQD" AS rqd,
-                c."CORE_REM" AS remark
+                c."CORE_REM" AS remark,
+                sri."SAMPLE_ID" AS sample_id
             FROM "ags42"."CORE" c
+
             LEFT JOIN LATERAL (
                 SELECT g."GEOL_DESC"
                 FROM "ags42"."GEOL" g
@@ -336,8 +338,15 @@ async def get_sampling_records(project_id: str, loca_id: str):
                 ORDER BY g."GEOL_TOP"
                 LIMIT 1
             ) geol_desc ON TRUE
+
+            LEFT JOIN "tdac"."SAMPLING_RECORD_ID" sri
+                ON sri."PROJ_ID" = c."PROJ_ID"
+                AND sri."LOCA_ID" = c."LOCA_ID"
+                AND sri."DEPTH_FROM" = c."CORE_TOP"
+
             WHERE c."PROJ_ID" = $1
               AND c."LOCA_ID" = $2
+
             ORDER BY c."CORE_TOP"
             """,
             project_id,
@@ -350,63 +359,133 @@ async def get_sampling_records(project_id: str, loca_id: str):
 async def create_sampling_record(
     project_id: str,
     loca_id: str,
-    depth_from: Decimal,
+    depth_from: float,
     depth_to,
     recovery,
     rqd,
     remark,
 ):
     async with database.pool.acquire() as connection:
-        existing = await connection.fetchval(
-            """
-            SELECT 1
-            FROM "ags42"."CORE"
-            WHERE "PROJ_ID" = $1 AND "LOCA_ID" = $2 AND "CORE_TOP" = $3
-            """,
-            project_id,
-            loca_id,
-            depth_from,
-        )
+        async with connection.transaction():
 
-        if existing:
-            raise DuplicateRecordError(
-                f"A sampling/coring record already exists at depth {depth_from}."
-            )
-
-        try:
-            row = await connection.fetchrow(
+            # ---------------------------------------------------------
+            # Check for an existing sampling record at this depth
+            # ---------------------------------------------------------
+            existing = await connection.fetchval(
                 """
-                INSERT INTO "ags42"."CORE"
-                    ("PROJ_ID", "LOCA_ID", "CORE_TOP", "CORE_BASE", "CORE_PREC", "CORE_RQD", "CORE_REM")
-                VALUES ($1, $2, $3, $4, $5, $6, $7)
-                RETURNING
-                    "CORE_TOP" AS depth_from,
-                    "CORE_BASE" AS depth_to,
-                    "CORE_PREC" AS recovery,
-                    "CORE_RQD" AS rqd,
-                    "CORE_REM" AS remark
+                SELECT 1
+                FROM "ags42"."CORE"
+                WHERE "PROJ_ID" = $1
+                  AND "LOCA_ID" = $2
+                  AND "CORE_TOP" = $3
                 """,
                 project_id,
                 loca_id,
                 depth_from,
-                depth_to,
-                recovery,
-                rqd,
-                remark,
             )
-        except asyncpg.UniqueViolationError as exc:
-            raise DuplicateRecordError(
-                f"A sampling/coring record already exists at depth {depth_from}."
-            ) from exc
 
-        # Rock Description has no column on CORE — it is only ever sourced
-        # from an overlapping GEOL interval, so surface it if one already
-        # exists at this depth (it will usually not, for a brand new run).
-        _, rock_description = await _resolve_rock_description(
-            connection, project_id, loca_id, depth_from
-        )
+            if existing:
+                raise DuplicateRecordError(
+                    f"A sampling/coring record already exists at depth {depth_from}."
+                )
+
+            # ---------------------------------------------------------
+            # Allocate the next Sample ID number for this project
+            #
+            # Example:
+            # TDAC-2026-09-1-1
+            # TDAC-2026-09-1-2
+            #
+            # A different project automatically starts at 1.
+            # ---------------------------------------------------------
+            counter_row = await connection.fetchrow(
+                """
+                INSERT INTO "tdac"."SAMPLE_ID_COUNTER"
+                    ("PROJ_ID", "LAST_NUMBER")
+                VALUES ($1, 1)
+                ON CONFLICT ("PROJ_ID")
+                DO UPDATE
+                SET "LAST_NUMBER" =
+                    "tdac"."SAMPLE_ID_COUNTER"."LAST_NUMBER" + 1
+                RETURNING "LAST_NUMBER"
+                """,
+                project_id,
+            )
+
+            sample_number = counter_row["LAST_NUMBER"]
+
+            sample_id = f"{project_id}-{sample_number}"
+
+            # ---------------------------------------------------------
+            # Insert the actual AGS CORE record
+            # ---------------------------------------------------------
+            try:
+                row = await connection.fetchrow(
+                    """
+                    INSERT INTO "ags42"."CORE"
+                        (
+                            "PROJ_ID",
+                            "LOCA_ID",
+                            "CORE_TOP",
+                            "CORE_BASE",
+                            "CORE_PREC",
+                            "CORE_RQD",
+                            "CORE_REM"
+                        )
+                    VALUES ($1, $2, $3, $4, $5, $6, $7)
+                    RETURNING
+                        "CORE_TOP" AS depth_from,
+                        "CORE_BASE" AS depth_to,
+                        "CORE_PREC" AS recovery,
+                        "CORE_RQD" AS rqd,
+                        "CORE_REM" AS remark
+                    """,
+                    project_id,
+                    loca_id,
+                    depth_from,
+                    depth_to,
+                    recovery,
+                    rqd,
+                    remark,
+                )
+
+            except asyncpg.UniqueViolationError as exc:
+                raise DuplicateRecordError(
+                    f"A sampling/coring record already exists at depth {depth_from}."
+                ) from exc
+
+            # ---------------------------------------------------------
+            # Get Rock Description from the matching geology interval
+            # ---------------------------------------------------------
+            _, rock_description = await _resolve_rock_description(
+                connection,
+                project_id,
+                loca_id,
+                depth_from,
+            )
+
+            # ---------------------------------------------------------
+            # Store TDAC Sample ID against this sampling record
+            # ---------------------------------------------------------
+            await connection.execute(
+                """
+                INSERT INTO "tdac"."SAMPLING_RECORD_ID"
+                    (
+                        "SAMPLE_ID",
+                        "PROJ_ID",
+                        "LOCA_ID",
+                        "DEPTH_FROM"
+                    )
+                VALUES ($1, $2, $3, $4)
+                """,
+                sample_id,
+                project_id,
+                loca_id,
+                depth_from,
+            )
 
     return {
+        "sample_id": sample_id,
         "depth_from": row["depth_from"],
         "depth_to": row["depth_to"],
         "rock_description": rock_description,
@@ -490,3 +569,27 @@ async def update_sampling_record(
         "rqd": row["rqd"],
         "remark": row["remark"],
     }
+
+async def get_project_samples(project_id: str):
+    async with database.pool.acquire() as connection:
+        rows = await connection.fetch(
+            """
+            SELECT
+                sri."SAMPLE_ID" AS sample_id,
+                sri."LOCA_ID" AS loca_id,
+                sri."DEPTH_FROM" AS depth_from,
+                c."CORE_BASE" AS depth_to
+            FROM "tdac"."SAMPLING_RECORD_ID" sri
+            LEFT JOIN "ags42"."CORE" c
+                ON c."PROJ_ID" = sri."PROJ_ID"
+                AND c."LOCA_ID" = sri."LOCA_ID"
+                AND c."CORE_TOP" = sri."DEPTH_FROM"
+            WHERE sri."PROJ_ID" = $1
+            ORDER BY
+                sri."LOCA_ID",
+                sri."DEPTH_FROM"
+            """,
+            project_id,
+        )
+
+    return rows

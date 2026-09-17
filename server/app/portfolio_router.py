@@ -20,7 +20,7 @@ from app.schemas.project import (
     LocaCreate,
     ProjectOverviewUpdate
 )
-
+from app.field_data_service import get_project_samples
 
 router = APIRouter(
     prefix="/api/portfolio",
@@ -314,4 +314,24 @@ async def create_project_loca_record(
             "end_date": created_loca["LOCA_ENDD"],
             "project_id": created_loca["PROJ_ID"],
         }
+    }
+
+@router.get("/projects/{project_id}/samples")
+async def project_samples(
+    project_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    rows = await get_project_samples(project_id)
+
+    return {
+        "project_id": project_id,
+        "samples": [
+            {
+                "sample_id": row["sample_id"],
+                "loca_id": row["loca_id"],
+                "depth_from": row["depth_from"],
+                "depth_to": row["depth_to"],
+            }
+            for row in rows
+        ],
     }

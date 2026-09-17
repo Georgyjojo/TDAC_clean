@@ -215,6 +215,7 @@ export async function createSptRecord(
 // ---------------------------------------------------------------------------
 
 export interface SamplingRecord {
+  sample_id: string;
   depth_from: number;
   depth_to: number | null;
   rock_description: string | null;
@@ -349,4 +350,27 @@ export async function getGroundwaterStatus(
   }
 
   return response.json();
+}
+
+export interface ProjectSample {
+  sample_id: string;
+  loca_id: string;
+  depth_from: number;
+  depth_to: number | null;
+}
+
+export async function getProjectSamples(
+  projectId: string
+): Promise<ProjectSample[]> {
+  const response = await apiClient(
+    `/portfolio/projects/${projectId}/samples`
+  );
+
+  if (!response.ok) {
+    throw new Error("Failed to load project samples.");
+  }
+
+  const data = await response.json();
+
+  return data.samples;
 }
