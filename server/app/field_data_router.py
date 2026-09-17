@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.auth.dependencies import get_current_user
@@ -62,7 +64,10 @@ async def borehole_records(
                 "soil_description": row["soil_description"],
                 "sand_clay": row["sand_clay"],
                 "avg_n_value": (
-                    float(row["avg_n_value"])
+                    # AVG(Numeric) is already exact; float() would only
+                    # re-introduce binary error on an average of clean
+                    # decimals (e.g. 5.5, 5.5 -> 5.5). Keep the Decimal.
+                    row["avg_n_value"]
                     if row["avg_n_value"] is not None
                     else None
                 ),
@@ -109,7 +114,7 @@ async def add_borehole(
 async def update_borehole(
     project_id: str,
     loca_id: str,
-    depth_from: float,
+    depth_from: Decimal,
     payload: BoreholeRecordUpdate,
     current_user: dict = Depends(get_current_user),
 ):
@@ -207,7 +212,7 @@ async def add_spt(
 async def update_spt(
     project_id: str,
     loca_id: str,
-    spt_depth: float,
+    spt_depth: Decimal,
     payload: SPTRecordUpdate,
     current_user: dict = Depends(get_current_user),
 ):
@@ -302,7 +307,7 @@ async def add_sampling(
 async def update_sampling(
     project_id: str,
     loca_id: str,
-    depth_from: float,
+    depth_from: Decimal,
     payload: SamplingRecordUpdate,
     current_user: dict = Depends(get_current_user),
 ):

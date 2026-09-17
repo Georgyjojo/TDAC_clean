@@ -43,6 +43,14 @@ CHECK_CASES: list[tuple[str, object, bool, object]] = [
     ("U", "3.14", True, 3.14),
     ("U", "-2", True, -2.0),
     ("U", "abc", False, None),
+    # U must reject non-finite spellings: float() happily parses them
+    # but no AGS field ever holds inf/nan, and Number.isFinite already
+    # rejects them on the TS side. Pinned so the twins stay in lockstep.
+    ("U", "Infinity", False, None),
+    ("U", "-Infinity", False, None),
+    ("U", "inf", False, None),
+    ("U", "nan", False, None),
+    ("U", "NaN", False, None),
     ("2DP", "1.25", True, 1.25),
     ("4SF", "1234", True, 1234.0),
     ("3SCI", "0.001", True, 0.001),

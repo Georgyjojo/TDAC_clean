@@ -29,17 +29,18 @@ the application's data contract and must not be changed:
         n_value    -> ISPT.ISPT_NVAL
 """
 
+from decimal import Decimal
 from typing import Optional
 
 from pydantic import BaseModel
 
 
 class BoreholeRecord(BaseModel):
-    depth_from: float
-    depth_to: Optional[float] = None
+    depth_from: Decimal
+    depth_to: Optional[Decimal] = None
     soil_description: Optional[str] = None
     sand_clay: Optional[str] = None
-    avg_n_value: Optional[float] = None
+    avg_n_value: Optional[Decimal] = None
 
 
 class BoreholeRecordUpdate(BaseModel):
@@ -50,8 +51,8 @@ class BoreholeRecordUpdate(BaseModel):
     update is taken from the URL path, not from this body.
     """
 
-    depth_from: float
-    depth_to: Optional[float] = None
+    depth_from: Decimal
+    depth_to: Optional[Decimal] = None
     soil_description: Optional[str] = None
     sand_clay: Optional[str] = None
 
@@ -64,54 +65,54 @@ class BoreholeRecordCreate(BaseModel):
     column, so it cannot be created directly.
     """
 
-    depth_from: float
-    depth_to: Optional[float] = None
+    depth_from: Decimal
+    depth_to: Optional[Decimal] = None
     soil_description: Optional[str] = None
     sand_clay: Optional[str] = None
 
 
 class SPTRecord(BaseModel):
-    spt_depth: float
-    blows_15: Optional[float] = None
-    blows_30: Optional[float] = None
-    blows_45: Optional[float] = None
-    n_value: Optional[float] = None
+    spt_depth: Decimal
+    blows_15: Optional[Decimal] = None
+    blows_30: Optional[Decimal] = None
+    blows_45: Optional[Decimal] = None
+    n_value: Optional[Decimal] = None
 
 
 class SPTRecordUpdate(BaseModel):
-    spt_depth: float
-    blows_15: Optional[float] = None
-    blows_30: Optional[float] = None
-    blows_45: Optional[float] = None
-    n_value: Optional[float] = None
+    spt_depth: Decimal
+    blows_15: Optional[Decimal] = None
+    blows_30: Optional[Decimal] = None
+    blows_45: Optional[Decimal] = None
+    n_value: Optional[Decimal] = None
 
 
 class SPTRecordCreate(BaseModel):
-    spt_depth: float
-    blows_15: Optional[float] = None
-    blows_30: Optional[float] = None
-    blows_45: Optional[float] = None
-    n_value: Optional[float] = None
+    spt_depth: Decimal
+    blows_15: Optional[Decimal] = None
+    blows_30: Optional[Decimal] = None
+    blows_45: Optional[Decimal] = None
+    n_value: Optional[Decimal] = None
 
 
 class SamplingRecord(BaseModel):
-    depth_from: float
-    depth_to: Optional[float] = None
+    depth_from: Decimal
+    depth_to: Optional[Decimal] = None
     rock_description: Optional[str] = None
-    recovery: Optional[float] = None
-    rqd: Optional[float] = None
+    recovery: Optional[Decimal] = None
+    rqd: Optional[Decimal] = None
     remark: Optional[str] = None
 
 
 class SamplingRecordUpdate(BaseModel):
-    depth_from: float
-    depth_to: Optional[float] = None
+    depth_from: Decimal
+    depth_to: Optional[Decimal] = None
     # Sourced from GEOL.GEOL_DESC (shared with Borehole / Drilling). Editing
     # it here updates the underlying geology interval that overlaps this
     # sample run, same as editing "Soil Description" on the Borehole tab.
     rock_description: Optional[str] = None
-    recovery: Optional[float] = None
-    rqd: Optional[float] = None
+    recovery: Optional[Decimal] = None
+    rqd: Optional[Decimal] = None
     remark: Optional[str] = None
 
 
@@ -124,8 +125,8 @@ class SamplingRecordCreate(BaseModel):
     interval from the Borehole / Drilling tab instead.
     """
 
-    depth_from: float
-    depth_to: Optional[float] = None
-    recovery: Optional[float] = None
-    rqd: Optional[float] = None
+    depth_from: Decimal
+    depth_to: Optional[Decimal] = None
+    recovery: Optional[Decimal] = None
+    rqd: Optional[Decimal] = None
     remark: Optional[str] = None

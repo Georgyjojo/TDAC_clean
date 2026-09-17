@@ -1,0 +1,13 @@
+{
+  "name": "tdac-clean",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "npm --prefix client run dev",
+    "build": "npm --prefix client run build",
+    "lint": "npm --prefix client run lint",
+    "server": "npm --prefix server run start",
+    "test:ui": "cd client && npx vite-node smoke-login.test.mjs && npx vite-node smoke-modal.test.mjs && npx vite-node smoke-workspace.test.mjs && npx vite-node smoke-fielddata.test.mjs"
+  }
+}

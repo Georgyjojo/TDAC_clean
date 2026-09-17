@@ -16,6 +16,7 @@ an explicit message) otherwise, so the suite stays runnable everywhere.
 import io
 import os
 from datetime import date
+from decimal import Decimal
 
 import openpyxl
 import pytest
@@ -91,27 +92,32 @@ class TestParserSynthetic:
         assert info["borehole_number"] == "BH 2"
         assert info["start_date"] == date(2026, 8, 17)
         assert info["end_date"] == date(2026, 8, 17)
-        assert info["final_depth"] == 23.45
+        # Depths are exact Decimals now: NUMERIC keeps what it is handed,
+        # so the parse must produce the shortest decimal the sheet meant,
+        # not the binary-float expansion of it.
+        assert info["final_depth"] == Decimal("23.45")
 
         assert parsed["borelog"] == [
             {
-                "depth_from": 0.0, "depth_to": 1.5,
+                "depth_from": Decimal("0"), "depth_to": Decimal("1.5"),
                 "soil_description": "Filling Gravel", "sand_clay": None,
             },
             {
-                "depth_from": 1.5, "depth_to": 2.5,
+                "depth_from": Decimal("1.5"), "depth_to": Decimal("2.5"),
                 "soil_description": "Soft Sandy CLAY", "sand_clay": "C",
             },
         ]
 
         assert parsed["spt"] == [
             {
-                "spt_depth": 1.0, "blows_15": 1.0, "blows_30": 1.0,
-                "blows_45": 1.0, "n_value": 2.0,
+                "spt_depth": Decimal("1"), "blows_15": Decimal("1"),
+                "blows_30": Decimal("1"), "blows_45": Decimal("1"),
+                "n_value": Decimal("2"),
             },
             {
-                "spt_depth": 2.0, "blows_15": 1.0, "blows_30": 1.0,
-                "blows_45": 1.0, "n_value": 2.0,
+                "spt_depth": Decimal("2"), "blows_15": Decimal("1"),
+                "blows_30": Decimal("1"), "blows_45": Decimal("1"),
+                "n_value": Decimal("2"),
             },
         ]
 
@@ -119,7 +125,9 @@ class TestParserSynthetic:
 
     def test_float_artifacts_are_rounded(self):
         # 2.2 stored as 2.1999999999999997 must land as 2.2 so re-imports
-        # hit the same unique-constraint identity.
+        # hit the same unique-constraint identity. repr() of the parsed
+        # float is already the shortest form; the equality against
+        # Decimal("2.2") proves no binary expansion survives either way.
         sheets = {
             "Borelog": [
                 ["Depth From (m)", "Depth To (m)", "Soil Description"],
@@ -127,7 +135,7 @@ class TestParserSynthetic:
             ],
         }
         parsed = parse_input_sheet(build_workbook(sheets))
-        assert parsed["borelog"][0]["depth_to"] == 2.2
+        assert parsed["borelog"][0]["depth_to"] == Decimal("2.2")
 
     def test_renamed_sheets_still_import(self):
         # Detection is by header tokens, not sheet names.
@@ -208,12 +216,12 @@ class TestParserRealWorkbook:
 
         info = parsed["project_info"]
         assert info["borehole_number"] == "BH 2"
-        assert info["final_depth"] == 23.45
+        assert info["final_depth"] == Decimal("23.45")
         assert info["start_date"] == date(2026, 8, 17)
 
         assert len(parsed["borelog"]) == 10
         assert parsed["borelog"][0]["soil_description"] == "Filling Gravel"
-        assert parsed["borelog"][-1]["depth_to"] == 23.45
+        assert parsed["borelog"][-1]["depth_to"] == Decimal("23.45")
 
         assert len(parsed["spt"]) == 14
         assert parsed["spt"][-1]["spt_depth"] == 23.0

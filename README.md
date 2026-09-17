@@ -64,17 +64,26 @@ pip install -r requirements.txt
 
 ### Step 4 — Configure the database
 
-The connection lives in `server/app/database.py`. Update it to match your local PostgreSQL (host, port, database name, user, password). Make sure the `ags42_data` database exists before starting.
+The connection lives in `server/.env` (see `server/env.sample` for the keys: DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD). The app reads it through python-dotenv, so no code change is needed to point at your PostgreSQL.
+
+Local Termux quick setup (Postgres already installed via `pkg install postgresql`):
+
+```bash
+psql -h 127.0.0.1 -U postgres -f server/scripts/init_local_db.sql   # creates the isolated tdacdb TEST database + all tables (idempotent)
+cd server && python3 scripts/seed_admin.py                           # admin / admin@123
+```
+
+Two databases, to be exact: the real development database is `ags42_data` (the Prerequisites line above — the same one the AGS projects read). `tdacdb` is the isolated scratch database created by `init_local_db.sql` for the `scripts/local_e2e*.sh` end-to-end tests — point `DB_NAME` at `tdacdb` only while running those, so test rows never land in `ags42_data`.
 
 ### Step 5 — Run the backend
 
 ```bash
-uvicorn app.main:app --reload --port 5000
+uvicorn app.main:app --reload --port 8000
 ```
 
-- API root: http://localhost:5000
-- Health check: http://localhost:5000/api/testdb
-- Auto docs: http://localhost:5000/docs
+- API root: http://localhost:8000
+- Health check: http://localhost:8000/api/testdb
+- Auto docs: http://localhost:8000/docs
 
 To **deactivate** the venv later, just run `deactivate`.
 
@@ -100,7 +109,7 @@ The app runs at the URL Vite prints (default http://localhost:5173).
 ```bash
 cd server
 source venv/bin/activate        # Windows: .\venv\Scripts\Activate.ps1
-uvicorn app.main:app --reload --port 5000
+uvicorn app.main:app --reload --port 8000
 ```
 
 **Terminal 2 — frontend:**

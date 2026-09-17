@@ -12,6 +12,8 @@ exactly as specified. Nothing here invents a database column or table
 that was not part of that mapping.
 """
 
+from decimal import Decimal
+
 import asyncpg
 
 from app import database
@@ -74,7 +76,7 @@ async def get_borehole_records(project_id: str, loca_id: str):
 async def create_borehole_record(
     project_id: str,
     loca_id: str,
-    depth_from: float,
+    depth_from: Decimal,
     depth_to,
     soil_description,
     sand_clay,
@@ -126,8 +128,8 @@ async def create_borehole_record(
 async def update_borehole_record(
     project_id: str,
     loca_id: str,
-    original_depth_from: float,
-    depth_from: float,
+    original_depth_from: Decimal,
+    depth_from: Decimal,
     depth_to,
     soil_description,
     sand_clay,
@@ -189,7 +191,7 @@ async def get_spt_records(project_id: str, loca_id: str):
 async def create_spt_record(
     project_id: str,
     loca_id: str,
-    spt_depth: float,
+    spt_depth: Decimal,
     blows_15,
     blows_30,
     blows_45,
@@ -244,8 +246,8 @@ async def create_spt_record(
 async def update_spt_record(
     project_id: str,
     loca_id: str,
-    original_spt_depth: float,
-    spt_depth: float,
+    original_spt_depth: Decimal,
+    spt_depth: Decimal,
     blows_15,
     blows_30,
     blows_45,
@@ -286,7 +288,7 @@ async def update_spt_record(
 # Sampling / Coring (CORE, with Rock Description derived from GEOL)
 # ---------------------------------------------------------------------------
 
-async def _resolve_rock_description(connection, project_id: str, loca_id: str, depth_from: float):
+async def _resolve_rock_description(connection, project_id: str, loca_id: str, depth_from: Decimal):
     """Look up the GEOL interval (if any) that overlaps depth_from, scoped
     by PROJ_ID + LOCA_ID. Returns (geol_top, geol_desc) or (None, None)."""
 
@@ -348,7 +350,7 @@ async def get_sampling_records(project_id: str, loca_id: str):
 async def create_sampling_record(
     project_id: str,
     loca_id: str,
-    depth_from: float,
+    depth_from: Decimal,
     depth_to,
     recovery,
     rqd,
@@ -417,8 +419,8 @@ async def create_sampling_record(
 async def update_sampling_record(
     project_id: str,
     loca_id: str,
-    original_depth_from: float,
-    depth_from: float,
+    original_depth_from: Decimal,
+    depth_from: Decimal,
     depth_to,
     rock_description,
     recovery,

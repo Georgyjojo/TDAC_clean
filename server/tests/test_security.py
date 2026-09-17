@@ -148,10 +148,9 @@ class TestRefreshToken:
         with pytest.raises(JWTError):
             decode_refresh_token("")
 
-    @pytest.mark.xfail(strict=True, reason="known bug")
     def test_secret_loaded_from_environment(self):
-        """KNOWN ISSUE (security, dev-only risk): SECRET_KEY is hardcoded at
-        app/auth/security.py:27 instead of loaded from the environment. This
-        test asserts the FIXED state (secret must not be the known committed
-        value) and xfails until the secret is externalized."""
+        """FIXED: SECRET_KEY reads JWT_SECRET_KEY from the environment.
+        The suite runs with server/.env present (that is the deployed
+        shape), so the fallback to the old committed development value
+        would mean the secret vanished — fail loudly when that happens."""
         assert SECRET_KEY != "temporary-secret-key"

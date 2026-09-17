@@ -18,15 +18,18 @@ Design constraints:
     dimensions (the example SPT sheet pads 20+ empty styled rows).
   - The in-sheet "AGS Equivalent" mapping legend column is documentation,
     never data; header-token matching ignores it naturally.
-  - Depths keep at most 10 decimals: the example sheet stores 2.2 as
-    2.1999999999999997, and the rounded value is what the database unique
-    constraints must see for a re-import to be idempotent.
+  - Depths travel as exact Decimal values: Excel stores numbers as binary
+    floats (5.8 reads back as 5.7999999999999998...), and NUMERIC columns
+    keep whatever they are handed, so converting via the shortest decimal
+    repr keeps 5.8 as 5.8 and makes re-imports hit the same unique-
+    constraint identity.
 """
 
 from __future__ import annotations
 
 import io
 from datetime import date, datetime
+from decimal import Decimal
 from typing import Any, Dict, List, Optional
 
 from openpyxl import load_workbook
@@ -85,7 +88,17 @@ def _is_blank(value: Any) -> bool:
     return False
 
 
-def _num(value: Any, field: str, row_no: int, required: bool = True) -> Optional[float]:
+def _num(value: Any, field: str, row_no: int, required: bool = True) -> Optional[Decimal]:
+    """Cell -> exact Decimal.
+
+    Excel numbers arrive as binary floats (5.8 reads back as
+    5.7999999999999998...), and NUMERIC columns store whatever they are
+    given: passing the float through would freeze that artifact into the
+    database. Converting via repr() keeps the shortest decimal string the
+    user actually typed, so 5.8 stays 5.8 and re-imports land on the same
+    unique-constraint identity. Decimal(text) rejects Infinity/NaN/empty
+    exponent forms on its own; the is_finite check is belt and braces.
+    """
     if _is_blank(value):
         if required:
             raise ExcelImportError(
@@ -96,20 +109,27 @@ def _num(value: Any, field: str, row_no: int, required: bool = True) -> Optional
         raise ExcelImportError(
             f"{field} must be a number, not TRUE/FALSE (row {row_no})."
         )
-    if isinstance(value, (int, float)):
-        result = float(value)
-    else:
-        try:
-            result = float(str(value).replace(",", "."))
-        except ValueError:
-            raise ExcelImportError(
-                f"{field} is not a valid number: {value!r} (row {row_no})."
-            ) from None
-    if result != result or result in (float("inf"), float("-inf")):
+    try:
+        result = Decimal(repr(value)) if isinstance(value, (int, float)) else Decimal(str(value).replace(",", "."))
+    except Exception:
+        raise ExcelImportError(
+            f"{field} is not a valid number: {value!r} (row {row_no})."
+        ) from None
+    if not result.is_finite():
         raise ExcelImportError(
             f"{field} is not a finite number (row {row_no})."
         )
-    return round(result, 10)
+    # 10-decimal ceiling, same contract as before: repr() already gives the
+    # shortest round-trip float text, but a literal like 2.1999999999999997
+    # typed into a cell IS its own shortest form, so the quantize is what
+    # snaps it back to the 2.2 the sheet meant. The strip afterwards drops
+    # the zero padding round() adds (2.2000000000 -> 2.2): NUMERIC keeps
+    # the scale it is handed, so padded zeros would land in the database
+    # and every psql SELECT would display them.
+    result = round(result, 10)
+    if result == result.to_integral_value():
+        return result.to_integral_value()
+    return result.normalize()
 
 
 def _text(value: Any) -> Optional[str]:

@@ -13,6 +13,7 @@ never raw xlsx cells — serial-to-ISO conversion is the browser's job
 """
 from __future__ import annotations
 
+import math
 from typing import Any, Iterable, Mapping
 
 from .rules import resolve_code
@@ -60,8 +61,13 @@ def check_value(ags_type_code: str, value: Any) -> tuple[bool, str | None]:
         return True, None
     if kind == "number":
         try:
-            float(raw)
+            n = float(raw)
         except ValueError:
+            return False, rule["message"].format(v=raw)
+        # float("Infinity") / float("NaN") parse fine but are not real
+        # AGS numbers; the TS twin already rejects them via
+        # Number.isFinite, so this keeps the two validators in lockstep.
+        if not math.isfinite(n):
             return False, rule["message"].format(v=raw)
         return True, None
     if kind == "regex":
