@@ -47,10 +47,12 @@ class ProjectUpdate(BaseModel):
     project_location: str = Field(min_length=1)
     project_client: str = Field(min_length=1)
 
+
 class ProjectOverviewUpdate(BaseModel):
     project_name: str = Field(min_length=1)
     project_location: str = Field(min_length=1)
     project_client: str = Field(min_length=1)
+
     consultant_name: str = Field(min_length=1)
     contractor_name: str = Field(min_length=1)
 
@@ -76,9 +78,11 @@ class ProjectOverviewUpdate(BaseModel):
     construction_verification_requirement: str = ""
     pile_load_test_requirement: str = ""
 
+
 class LocaCreate(BaseModel):
     loca_id: str = Field(min_length=1)
     loca_type: str = Field(min_length=1)
+
     start_date: date | None = None
     end_date: date | None = None
     final_depth: Optional[Decimal] = Field(default=None, gt=0)
