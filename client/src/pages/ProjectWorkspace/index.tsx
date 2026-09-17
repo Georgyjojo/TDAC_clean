@@ -9,7 +9,7 @@ import {
 import { WORKSPACE_TABS, getTabLabel } from "./types";
 import { Overview } from "./Overview";
 import { FieldData } from "./FieldData";
-import { LabData } from "./LabData";
+import { LabData } from "./LabData/index";
 import { ProcessedData } from "./ProcessedData";
 import { InterpretationGroundModel } from "./InterpretationGroundModel";
 import { DesignParameters } from "./DesignParameters";
