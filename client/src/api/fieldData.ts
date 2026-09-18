@@ -362,8 +362,8 @@ export interface ProjectSample {
 export async function getProjectSamples(
   projectId: string
 ): Promise<ProjectSample[]> {
-  const response = await apiClient(
-    `/portfolio/projects/${projectId}/samples`
+    const response = await apiClient(
+    `/api/portfolio/projects/${projectId}/samples`
   );
 
   if (!response.ok) {
@@ -373,4 +373,53 @@ export async function getProjectSamples(
   const data = await response.json();
 
   return data.samples;
+}
+
+export async function createProjectLabTest(
+  projectId: string,
+  payload: {
+    loca_id: string;
+    samp_id: string;
+    specimen_ref: string;
+    test_type: string;
+    method_definition_id: string;
+    laboratory: string;
+    technician?: string;
+  }
+) {
+  const response = await apiClient(
+    `/api/portfolio/projects/${projectId}/lab/tests`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }
+  );
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      data.detail || "Failed to create laboratory test."
+    );
+  }
+
+  return data;
+}
+
+export async function getProjectLabTests(
+  projectId: string
+) {
+  const response = await apiClient(
+    `/api/portfolio/projects/${projectId}/lab/tests`
+  );
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      data.detail || "Failed to load laboratory tests."
+    );
+  }
+
+  return data.tests;
 }

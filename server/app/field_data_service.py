@@ -393,8 +393,8 @@ async def create_sampling_record(
             # Allocate the next Sample ID number for this project
             #
             # Example:
-            # TDAC-2026-09-1-1
-            # TDAC-2026-09-1-2
+            # 301-1
+            # 301-2
             #
             # A different project automatically starts at 1.
             # ---------------------------------------------------------
@@ -455,6 +455,31 @@ async def create_sampling_record(
                 ) from exc
 
             # ---------------------------------------------------------
+            # Create the corresponding AGS SAMP record
+            #
+            # SAMP is the sample identity/linkage record.
+            # Detailed geological information remains in GEOL.
+            # ---------------------------------------------------------
+            await connection.execute(
+                """
+                INSERT INTO "ags42"."SAMP"
+                    (
+                        "PROJ_ID",
+                        "LOCA_ID",
+                        "SAMP_ID",
+                        "SAMP_TOP",
+                        "SAMP_BASE"
+                    )
+                VALUES ($1, $2, $3, $4, $5)
+                """,
+                project_id,
+                loca_id,
+                sample_id,
+                depth_from,
+                depth_to,
+            )
+
+            # ---------------------------------------------------------
             # Get Rock Description from the matching geology interval
             # ---------------------------------------------------------
             _, rock_description = await _resolve_rock_description(
@@ -484,16 +509,15 @@ async def create_sampling_record(
                 depth_from,
             )
 
-    return {
-        "sample_id": sample_id,
-        "depth_from": row["depth_from"],
-        "depth_to": row["depth_to"],
-        "rock_description": rock_description,
-        "recovery": row["recovery"],
-        "rqd": row["rqd"],
-        "remark": row["remark"],
-    }
-
+            return {
+                "sample_id": sample_id,
+                "depth_from": row["depth_from"],
+                "depth_to": row["depth_to"],
+                "rock_description": rock_description,
+                "recovery": row["recovery"],
+                "rqd": row["rqd"],
+                "remark": row["remark"],
+            }
 
 async def update_sampling_record(
     project_id: str,
@@ -588,6 +612,33 @@ async def get_project_samples(project_id: str):
             ORDER BY
                 sri."LOCA_ID",
                 sri."DEPTH_FROM"
+            """,
+            project_id,
+        )
+
+    return rows
+
+async def get_project_lab_tests(project_id: str):
+    async with database.pool.acquire() as connection:
+        rows = await connection.fetch(
+            """
+            SELECT
+                t."test_id",
+                t."loca_id",
+                t."samp_id",
+                t."spec_ref",
+                t."test_type",
+                t."laboratory",
+                t."technician",
+                t."test_started_at",
+                t."test_completed_at",
+                t."status",
+                t."current_revision",
+                t."created_at"
+            FROM "lab"."test" t
+            WHERE t."project_id" = $1
+            ORDER BY
+                t."created_at" DESC
             """,
             project_id,
         )

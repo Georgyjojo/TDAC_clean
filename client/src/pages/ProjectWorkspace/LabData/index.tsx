@@ -1,6 +1,12 @@
 import { LabDataTabs } from "./LabDataTabs";
 
-export function LabData() {
+interface LabDataProps {
+  projectId: string;
+}
+
+export function LabData({
+  projectId,
+}: LabDataProps) {
   return (
     <section className="panel">
       <div className="panel-head">
@@ -8,7 +14,7 @@ export function LabData() {
       </div>
 
       <div className="panel-body">
-        <LabDataTabs />
+        <LabDataTabs projectId={projectId} />
       </div>
     </section>
   );

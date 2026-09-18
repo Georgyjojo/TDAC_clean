@@ -22,8 +22,13 @@ const TABS: { id: LabTab; label: string }[] = [
   { id: "qa-approval", label: "QA and Approval" },
   { id: "ags-mapping", label: "AGS Mapping" },
 ];
+interface LabDataTabsProps {
+  projectId: string;
+}
 
-export function LabDataTabs() {
+export function LabDataTabs({
+  projectId,
+}: LabDataTabsProps) {
   const [activeTab, setActiveTab] = useState<LabTab>("overview");
 
   return (
@@ -44,8 +49,12 @@ export function LabDataTabs() {
       </div>
 
       <div className="lab-data-tab-content">
-        {activeTab === "overview" && <OverviewTab />}
-        {activeTab === "test-register" && <TestRegisterTab />}
+        {activeTab === "overview" && (
+          <OverviewTab projectId={projectId} />
+        )}
+        {activeTab === "test-register" && (
+          <TestRegisterTab projectId={projectId} />
+        )}
         {activeTab === "results-entry" && <ResultsEntryTab />}
         {activeTab === "historic-data" && <HistoricDataTab />}
         {activeTab === "qa-approval" && <QAApprovalTab />}

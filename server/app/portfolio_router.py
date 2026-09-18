@@ -1,5 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException
 
+from app.schemas.lab_data import LabTestCreate
+from app.lab_data_service import (
+    create_lab_test,
+    get_project_lab_tests,
+)
 from app.auth.dependencies import get_current_user
 from app.portfolio_service import (
     get_portfolio_summary,
@@ -331,6 +336,83 @@ async def project_samples(
                 "loca_id": row["loca_id"],
                 "depth_from": row["depth_from"],
                 "depth_to": row["depth_to"],
+            }
+            for row in rows
+        ],
+    }
+
+@router.post("/projects/{project_id}/lab/tests", status_code=201)
+async def create_project_lab_test(
+    project_id: str,
+    payload: LabTestCreate,
+    current_user: dict = Depends(get_current_user),
+):
+    try:
+        created = await create_lab_test(
+            project_id=project_id,
+            loca_id=payload.loca_id,
+            samp_id=payload.samp_id,
+            specimen_ref=payload.specimen_ref,
+            test_type=payload.test_type,
+            method_definition_id=payload.method_definition_id,
+            laboratory=payload.laboratory,
+            technician=payload.technician,
+            test_started_at=payload.test_started_at,
+            test_completed_at=payload.test_completed_at,
+            created_by=current_user["username"],
+        )
+
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        )
+
+    return {
+        "message": "Laboratory test created successfully",
+        "test": {
+            "test_id": str(created["test_id"]),
+            "project_id": project_id,
+            "loca_id": created["loca_id"],
+            "samp_id": created["samp_id"],
+            "spec_ref": created["spec_ref"],
+            "test_type": created["test_type"],
+            "method_definition_id": str(
+                created["method_definition_id"]
+            ),
+            "laboratory": created["laboratory"],
+            "technician": created["technician"],
+            "status": created["status"],
+            "current_revision": created["current_revision"],
+            "row_version": created["row_version"],
+        },
+    }
+
+@router.get("/projects/{project_id}/lab/tests")
+async def project_lab_tests(
+    project_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    rows = await get_project_lab_tests(project_id)
+
+    return {
+        "project_id": project_id,
+        "tests": [
+            {
+                "test_id": str(row["test_id"]),
+                "loca_id": row["loca_id"],
+                "samp_id": row["samp_id"],
+                "samp_top": row["samp_top"],
+                "samp_base": row["samp_base"],
+                "spec_ref": row["spec_ref"],
+                "test_type": row["test_type"],
+                "laboratory": row["laboratory"],
+                "technician": row["technician"],
+                "test_started_at": row["test_started_at"],
+                "test_completed_at": row["test_completed_at"],
+                "status": row["status"],
+                "current_revision": row["current_revision"],
+                "created_at": row["created_at"],
             }
             for row in rows
         ],

@@ -191,7 +191,7 @@ export function ProjectWorkspacePage() {
           onSelectModule={setActiveFieldModule}
         />
       ) : activeTab === "lab" ? (
-        <LabData />
+        <LabData projectId={projectId} />
       ) : activeTab === "processed" ? (
         <ProcessedData />
       ) : activeTab === "interpretation" ? (
