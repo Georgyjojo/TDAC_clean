@@ -42,3 +42,6 @@ server/venv/
 server/__pycache__/
 *.pyc
 .env
+
+# Local DB documentation dump (generated, not source)
+db-docs/
