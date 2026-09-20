@@ -117,6 +117,15 @@
   color: #ffffff;
 }
 
+/* Completed earlier steps: stay a filled dark-green so the stepper shows
+   progression (1-4 done after calculate) instead of a single active box. */
+.workflow-item.done {
+  background: #e2eef0;
+  border-color: #a9c8cd;
+  color: #173b52;
+  font-weight: 600;
+}
+
 .workflow-number {
   font-size: 13px;
   font-weight: 500;

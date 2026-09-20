@@ -252,6 +252,13 @@ export function ResultsEntryTab() {
   const stale = evaluation !== null && evaluation.snapshot !== snapshot;
   const calculated = evaluation !== null && !stale;
 
+  // The current workflow stage drives which bar items are highlighted.
+  // Before calculation the user is editing Identity/Method/Readings (steps
+  // 1-3 active). Once calculated, those are done and step 4 (Calculation)
+  // is active. Steps 5-6 need the submit/approve backend, so they stay
+  // upcoming and are never shown as done here.
+  const prepared = !calculated; // editing identity/method/readings
+
   const currentTest = TESTS.find(
     (test) => test.id === selectedTest
   );
@@ -431,30 +438,36 @@ export function ResultsEntryTab() {
 
       <div className="results-workflow">
 
+        {/* Identity / Method / Readings: active while editing */}
         <WorkflowItem
           number="1"
           label="Identity"
-          active={!calculated}
+          active={prepared}
+          done={calculated}
         />
 
         <WorkflowItem
           number="2"
           label="Method"
-          active={!calculated}
+          active={prepared}
+          done={calculated}
         />
 
         <WorkflowItem
           number="3"
           label="Readings"
-          active={!calculated}
+          active={prepared}
+          done={calculated}
         />
 
+        {/* Calculation: active once calculated */}
         <WorkflowItem
           number="4"
           label="Calculation"
           active={calculated}
         />
 
+        {/* QA / Release: downstream, need submit/approve backend */}
         <WorkflowItem
           number="5"
           label="QA"
@@ -709,6 +722,11 @@ export function ResultsEntryTab() {
               plasticTrials={plasticTrials}
               updateLiquidTrial={updateLiquidTrial}
               updatePlasticTrial={updatePlasticTrial}
+              evaluation={
+                selectedTest === "ATTERBERG"
+                  ? evaluation?.value ?? null
+                  : null
+              }
             />
 
           )}
@@ -796,6 +814,10 @@ interface AtterbergProps {
     field: keyof PlasticTrial,
     value: string
   ) => void;
+
+  // Live calculation result, so the reported values and the flow curve
+  // reflect the trials the user actually entered. Null before calculate.
+  evaluation: Evaluation | null;
 }
 
 function AtterbergSection({
@@ -813,6 +835,7 @@ function AtterbergSection({
   plasticTrials,
   updateLiquidTrial,
   updatePlasticTrial,
+  evaluation,
 }: AtterbergProps) {
 
   return (
@@ -977,7 +1000,7 @@ function AtterbergSection({
       )}
 
       {atterbergTab === "flow" && (
-        <AtterbergFlowCurve />
+        <AtterbergFlowCurve evaluation={evaluation} />
       )}
 
       {atterbergTab === "shrinkage" && (
@@ -990,9 +1013,9 @@ function AtterbergSection({
 
         <div className="atterberg-bottom">
 
-          <AtterbergFlowCurve />
+          <AtterbergFlowCurve evaluation={evaluation} />
 
-          <ReportedValues />
+          <ReportedValues evaluation={evaluation} />
 
         </div>
 
@@ -1265,7 +1288,11 @@ function PlasticLimitTable({
    FLOW CURVE
    ============================================================ */
 
-function AtterbergFlowCurve() {
+function AtterbergFlowCurve({
+  evaluation,
+}: {
+  evaluation: Evaluation | null;
+}) {
 
   return (
     <div className="flow-curve-card">
@@ -1412,7 +1439,31 @@ function AtterbergFlowCurve() {
    REPORTED VALUES
    ============================================================ */
 
-function ReportedValues() {
+function ReportedValues({
+  evaluation,
+}: {
+  evaluation: Evaluation | null;
+}) {
+
+  // The engine emits results labelled "Liquid limit", "Plastic limit",
+  // "Plasticity index", "Flow index" and "Classification aid". Before the
+  // user calculates, evaluation is null so the card shows a clear hint
+  // instead of fabricated values.
+  const byLabel = new Map(
+    (evaluation?.results ?? []).map((r) => [r.label, r])
+  );
+
+  const rows: { label: string; value: string }[] = [
+    { label: "Liquid limit", value: byLabel.get("Liquid limit")?.value ?? "—" },
+    { label: "Plastic limit", value: byLabel.get("Plastic limit")?.value ?? "—" },
+    { label: "Plasticity index", value: byLabel.get("Plasticity index")?.value ?? "—" },
+    { label: "Flow index", value: byLabel.get("Flow index")?.value ?? "—" },
+  ];
+
+  const classification = byLabel.get("Classification aid (interpretation only)");
+  if (classification) {
+    rows.push({ label: "Classification aid", value: classification.value });
+  }
 
   return (
     <div className="reported-card">
@@ -1421,30 +1472,16 @@ function ReportedValues() {
         Reported values
       </h3>
 
-      <ReportedRow
-        label="Liquid limit"
-        value="52%"
-      />
-
-      <ReportedRow
-        label="Plastic limit"
-        value="24%"
-      />
-
-      <ReportedRow
-        label="Plasticity index"
-        value="28"
-      />
-
-      <ReportedRow
-        label="Flow index"
-        value="11.8"
-      />
-
-      <ReportedRow
-        label="Classification aid"
-        value="CH"
-      />
+      {evaluation === null ? (
+        <div className="re-note">
+          Enter the liquid and plastic limit trials, then press
+          "Calculate and validate" to see the reported values here.
+        </div>
+      ) : (
+        rows.map((r) => (
+          <ReportedRow key={r.label} label={r.label} value={r.value} />
+        ))
+      )}
 
       <div className="classification-note">
         Classification is an interpretation aid.
@@ -2120,20 +2157,22 @@ function WorkflowItem({
   number,
   label,
   active = false,
+  done = false,
 }: {
   number: string;
   label: string;
   active?: boolean;
+  done?: boolean;
 }) {
 
+  const className = active
+    ? "workflow-item active"
+    : done
+    ? "workflow-item done"
+    : "workflow-item";
+
   return (
-    <div
-      className={
-        active
-          ? "workflow-item active"
-          : "workflow-item"
-      }
-    >
+    <div className={className}>
 
       <span className="workflow-number">
         {number}
