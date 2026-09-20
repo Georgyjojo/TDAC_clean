@@ -111,3 +111,97 @@ export async function getNextProjectId(): Promise<string> {
 
   return data.project_id;
 }
+//
+// =====================================================
+// PROJECT LOCATIONS
+// =====================================================
+
+export interface ProjectLoca {
+  PROJ_ID?: string | number;
+  LOCA_ID?: string;
+  loca_id?: string;
+
+  [key: string]: unknown;
+}
+
+export async function getProjectLocas(
+  projectId: string
+): Promise<ProjectLoca[]> {
+  const response = await apiClient(
+    `/api/portfolio/projects/${encodeURIComponent(
+      projectId
+    )}/locas`,
+    {
+      method: "GET",
+    }
+  );
+
+  if (!response.ok) {
+    const errorBody =
+      await response.json().catch(() => null);
+
+    throw new Error(
+      errorBody?.detail ||
+        errorBody?.message ||
+        `Failed to load project locations (${response.status})`
+    );
+  }
+
+  const data = await response.json();
+
+  return data.locas ?? [];
+}
+
+// =====================================================
+// PROJECT SAMPLES
+// =====================================================
+
+export interface ProjectSample {
+  PROJ_ID?: string | number;
+  LOCA_ID?: string;
+  SAMP_ID?: string;
+
+  SAMP_TOP?: number | string;
+  SAMP_BASE?: number | string;
+  SAMP_REF?: string;
+  SAMP_TYPE?: string;
+
+  proj_id?: string | number;
+  loca_id?: string;
+  samp_id?: string;
+
+  samp_top?: number | string;
+  samp_base?: number | string;
+  samp_ref?: string;
+  samp_type?: string;
+
+  [key: string]: unknown;
+}
+
+export async function getProjectSamples(
+  projectId: string
+): Promise<ProjectSample[]> {
+  const response = await apiClient(
+    `/api/portfolio/projects/${encodeURIComponent(
+      projectId
+    )}/samples`,
+    {
+      method: "GET",
+    }
+  );
+
+  if (!response.ok) {
+    const errorBody =
+      await response.json().catch(() => null);
+
+    throw new Error(
+      errorBody?.detail ||
+        errorBody?.message ||
+        `Failed to load project samples (${response.status})`
+    );
+  }
+
+  const data = await response.json();
+
+  return data.samples ?? [];
+}
