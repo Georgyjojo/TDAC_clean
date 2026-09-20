@@ -6,6 +6,7 @@ from app.lab_data_service import (
     get_project_lab_tests,
     get_approved_results,
     get_review_queue,
+    get_active_methods,
 )
 from app.auth.dependencies import get_current_user
 from app.portfolio_service import (
@@ -452,5 +453,16 @@ async def project_lab_review_queue(
     return {
         "project_id": project_id,
         "queue": rows,
+    }
+
+
+@router.get("/lab/methods")
+async def lab_methods(
+    current_user: dict = Depends(get_current_user),
+):
+    rows = await get_active_methods()
+
+    return {
+        "methods": rows,
     }
 

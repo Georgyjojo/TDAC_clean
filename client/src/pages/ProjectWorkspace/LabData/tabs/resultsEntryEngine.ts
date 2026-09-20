@@ -42,61 +42,51 @@ const num = (s: string | undefined) =>
   s === undefined || s.trim() === "" ? NaN : Number(s);
 const fmt = (n: number, d = 2) => (Number.isFinite(n) ? n.toFixed(d) : "—");
 
+/**
+ * Form-shape defaults per test: method profile name and the ROW SHAPE
+ * (which cells a row carries) - but NO example values. Every grid starts
+ * empty; all data is entered by the user against a real test.
+ */
 export function defaultMethodData(test: TestKey): MethodData {
   switch (test) {
     case "PSD":
       return {
         params: {
           method: "IS 2720 Part 4 - Sieve + hydrometer",
-          dryMass: "512.40",
-          particleDensity: "2.67",
-          pretreatment: "Wet sieve and dispersant",
+          dryMass: "",
+          particleDensity: "",
+          pretreatment: "",
         },
-        rows: [
-          ["4.750", "242.20", "252.45"],
-          ["2.000", "238.80", "266.47"],
-          ["0.425", "231.10", "310.53"],
-          ["0.075", "229.55", "361.81"],
-        ].map(([size, tare, tareRet]) => ({ size, tare, tareRet, gratType: "WS" })),
+        rows: [],
       };
     case "PARTICLE_DENSITY":
       return {
         params: {
           method: "IS 2720 Part 3 - Pycnometer",
-          pycnometer: "PYK-04 · 50 ml",
-          fraction: "Passing 2 mm",
+          pycnometer: "",
+          fraction: "",
         },
-        rows: [
-          ["1", "31.250", "41.345", "89.712", "83.405"],
-          ["2", "32.110", "42.202", "90.557", "84.245"],
-        ].map(([trial, m1, m2, m3, m4]) => ({ trial, m1, m2, m3, m4, temp: "27.0", use: "true" })),
+        rows: [],
       };
     case "SHRINKAGE_LIMIT":
       return {
         params: {
           method: "IS 2720 Part 6 - Shrinkage factors",
-          initialWc: "31.5",
-          initialDensity: "1.66",
-          preparation: "Remoulded paste",
+          initialWc: "",
+          initialDensity: "",
+          preparation: "",
         },
-        rows: [
-          ["1", "42.35", "31.78", "25.20", "18.95"],
-          ["2", "41.91", "31.50", "24.98", "18.82"],
-        ].map(([trial, wetMass, dryMass, wetVol, dryVol]) => ({ trial, wetMass, dryMass, wetVol, dryVol })),
+        rows: [],
       };
     case "TRIAXIAL_UU":
       return {
         params: {
           method: "IS 2720 Part 11 - UU",
-          condition: "Undisturbed",
-          frame: "TRX-02 · Calibration valid",
+          condition: "",
+          frame: "",
           failureCriterion: "Peak deviator stress",
         },
-        rows: [
-          ["UU-1", "38.1", "76.2", "50", "76", "8.3", "Barrelling"],
-          ["UU-2", "38.0", "76.0", "100", "82", "9.1", "Shear plane"],
-          ["UU-3", "38.2", "76.4", "200", "80", "10.0", "Barrelling"],
-        ].map(([spec, dia, length, cell, q, strain, mode]) => ({ spec, dia, length, cell, q, strain, mode })),
+        rows: [],
       };
     default:
       return { params: {}, rows: [] };

@@ -1,5 +1,6 @@
 from datetime import datetime
 from uuid import UUID, uuid4
+import json
 
 from app import database
 
@@ -237,27 +238,34 @@ async def get_approved_results(
     (LL, PI) read from the revision's calculation snapshot.
     Superseded, draft and rejected records are never returned.
     """
+    # NOTE: placeholder numbering. $1 is bound to project_id (the EXISTS
+    # subquery below). The dynamic filters must therefore start at $2, so
+    # every index is offset by +1 to match the *values passed after
+    # project_id in the fetch call.
     conditions = ["t.status = 'APPROVED'"]
     values = []
+
+    def ph() -> int:
+        return len(values) + 1  # +1 because $1 is reserved for project_id
 
     if sample:
         values.append(f"%{sample}%")
         conditions.append(
-            f"(t.samp_id ILIKE ${len(values)} "
-            f"OR t.spec_ref ILIKE ${len(values)})"
+            f"(t.samp_id ILIKE ${ph()} "
+            f"OR t.spec_ref ILIKE ${ph()})"
         )
 
     if depth_from is not None:
         values.append(depth_from)
-        conditions.append(f"t.spec_depth >= ${len(values)}")
+        conditions.append(f"t.spec_depth >= ${ph()}")
 
     if depth_to is not None:
         values.append(depth_to)
-        conditions.append(f"t.spec_depth <= ${len(values)}")
+        conditions.append(f"t.spec_depth <= ${ph()}")
 
     if test_type:
         values.append(test_type)
-        conditions.append(f"t.test_type = ${len(values)}")
+        conditions.append(f"t.test_type = ${ph()}")
 
     where = " AND ".join(conditions)
 
@@ -294,7 +302,16 @@ async def get_approved_results(
     results = []
 
     for row in rows:
-        calc = row["calc"] or {}
+        # asyncpg returns jsonb as a str; parse it before reading keys.
+        calc_raw = row["calc"]
+        calc = {}
+        if calc_raw:
+            try:
+                parsed = json.loads(calc_raw) if isinstance(calc_raw, str) else calc_raw
+                if isinstance(parsed, dict):
+                    calc = parsed
+            except (ValueError, TypeError):
+                calc = {}
 
         results.append(
             {
@@ -367,6 +384,54 @@ async def get_review_queue(project_id: str):
             "status": row["status"],
             "warnings": row["warnings"],
             "blockers": row["blockers"],
+        }
+        for row in rows
+    ]
+
+
+async def get_active_methods():
+    """
+    Active method definitions, newest version per method_code.
+    The Test Register and Results Entry method dropdowns read this -
+    method_definition_id is required to create a lab test.
+    """
+    async with database.pool.acquire() as connection:
+        rows = await connection.fetch(
+            """
+            SELECT DISTINCT ON (m.method_code)
+                m.method_definition_id,
+                m.method_code,
+                m.method_version,
+                m.test_type,
+                m.method_name,
+                m.standard_body,
+                m.standard_reference,
+                m.standard_edition,
+                m.calculation_package,
+                m.calculation_package_version,
+                m.ags_mapping_profile,
+                m.active
+            FROM lab.method_definition m
+            WHERE m.active = true
+            ORDER BY m.method_code, m.method_version DESC
+            """,
+        )
+
+    return [
+        {
+            "method_definition_id": str(row["method_definition_id"]),
+            "method_code": row["method_code"],
+            "method_version": row["method_version"],
+            "test_type": row["test_type"],
+            "method_name": row["method_name"],
+            "standard_body": row["standard_body"],
+            "standard_reference": row["standard_reference"],
+            "standard_edition": row["standard_edition"],
+            "calculation_package": row["calculation_package"],
+            "calculation_package_version": row["calculation_package_version"],
+            "ags_group": json.loads(row["ags_mapping_profile"]).get("groups")
+            if row["ags_mapping_profile"]
+            else None,
         }
         for row in rows
     ]

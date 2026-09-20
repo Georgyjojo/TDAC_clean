@@ -30,41 +30,77 @@ import { useEffect, useState } from "react";
    const [error, setError] = useState<string | null>(null);
 
    function setField(field: keyof HistoricFilter, value: string) {
-     setFilter((current) => ({ ...current, [field]: value }));
-   }
-   
-     useEffect(() => {
-     let cancelled = false;
-
-     async function load() {
-       try {
-         setLoading(true);
-         setError(null);
-
-         const data = await getLabResults(projectId);
-
-         if (!cancelled) {
-           setResults(data);
-         }
-       } catch (err) {
-         if (!cancelled) {
-           setError(
-             err instanceof Error ? err.message : "Failed to load results"
-           );
-         }
-       } finally {
-         if (!cancelled) {
-           setLoading(false);
-         }
-       }
+       setFilter((current) => ({ ...current, [field]: value }));
      }
 
-     load();
+     // Parses the free-text depth range ("5-15", "5", or "5 to 15") into
+     // [depth_from, depth_to]. Unparseable input yields both undefined so the
+     // query simply omits the depth filter instead of erroring.
+     function parseDepthRange(raw: string): { from?: number; to?: number } {
+       const trimmed = raw.trim();
 
-     return () => {
-       cancelled = true;
-     };
-   }, [projectId]);
+       if (trimmed === "") {
+         return {};
+       }
+
+       const parts = trimmed.split(/[-\s]+|to/i).map(Number);
+
+       if (parts.length === 1 && Number.isFinite(parts[0])) {
+         return { from: parts[0] };
+       }
+
+       if (
+         parts.length >= 2 &&
+         Number.isFinite(parts[0]) &&
+         Number.isFinite(parts[1])
+       ) {
+         const from = Math.min(parts[0], parts[1]);
+         const to = Math.max(parts[0], parts[1]);
+         return { from, to };
+       }
+
+       return {};
+     }
+
+     useEffect(() => {
+       let cancelled = false;
+
+       async function load() {
+         try {
+           setLoading(true);
+           setError(null);
+
+           const depth = parseDepthRange(filter.depthRange);
+
+           const data = await getLabResults(projectId, {
+             sample: filter.sample,
+             depth_from: depth.from,
+             depth_to: depth.to,
+             test_type: filter.test,
+           });
+
+           if (!cancelled) {
+             setResults(data);
+           }
+         } catch (err) {
+           if (!cancelled) {
+             setError(
+               err instanceof Error ? err.message : "Failed to load results"
+             );
+           }
+         } finally {
+           if (!cancelled) {
+             setLoading(false);
+           }
+         }
+       }
+
+       load();
+
+       return () => {
+         cancelled = true;
+       };
+     }, [projectId, filter.sample, filter.depthRange, filter.test]);
 
    return (
      <div>

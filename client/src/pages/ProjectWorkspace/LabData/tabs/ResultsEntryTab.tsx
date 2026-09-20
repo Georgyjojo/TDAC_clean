@@ -90,15 +90,18 @@ interface IdentityData {
   testDate: string;
 }
 
+// Identity starts empty. Every value here is entered by the user or
+// copied from a real sample via the samples API - never pre-filled
+// with mock values.
 const INITIAL_IDENTITY: IdentityData = {
-  locationId: "BH-07",
-  sampleId: "BH07-UD-0800",
-  specimenReference: "SP-01",
-  specimenDepth: "8.00",
-  specimenBase: "8.30",
-  laboratory: "TDAC Central Laboratory",
-  technician: "Laboratory Technician",
-  testDate: "2026-09-17",
+  locationId: "",
+  sampleId: "",
+  specimenReference: "",
+  specimenDepth: "",
+  specimenBase: "",
+  laboratory: "",
+  technician: "",
+  testDate: "",
 };
 
 interface LiquidTrial {
@@ -112,38 +115,9 @@ interface LiquidTrial {
   use: boolean;
 }
 
-const INITIAL_LIQUID_TRIALS: LiquidTrial[] = [
-  {
-    trial: 1,
-    blows: "18",
-    container: "LL-21",
-    containerMass: "12.44",
-    wetContainer: "27.31",
-    dryContainer: "22.01",
-    waterContent: "55.4",
-    use: true,
-  },
-  {
-    trial: 2,
-    blows: "24",
-    container: "LL-22",
-    containerMass: "11.98",
-    wetContainer: "27.10",
-    dryContainer: "21.65",
-    waterContent: "56.4",
-    use: true,
-  },
-  {
-    trial: 3,
-    blows: "31",
-    container: "LL-23",
-    containerMass: "12.10",
-    wetContainer: "26.84",
-    dryContainer: "21.59",
-    waterContent: "55.3",
-    use: true,
-  },
-];
+// Trials start empty. Rows are added by the user while entering a real
+// test - no seeded example readings.
+const INITIAL_LIQUID_TRIALS: LiquidTrial[] = [];
 
 interface PlasticTrial {
   trial: number;
@@ -154,77 +128,20 @@ interface PlasticTrial {
   waterContent: string;
 }
 
-const INITIAL_PLASTIC_TRIALS: PlasticTrial[] = [
-  {
-    trial: 1,
-    container: "PL-11",
-    containerMass: "10.21",
-    wetContainer: "18.50",
-    dryContainer: "16.89",
-    waterContent: "24.1",
-  },
-  {
-    trial: 2,
-    container: "PL-12",
-    containerMass: "10.05",
-    wetContainer: "18.30",
-    dryContainer: "16.73",
-    waterContent: "23.8",
-  },
-];
+const INITIAL_PLASTIC_TRIALS: PlasticTrial[] = [];
 
-const CONSOLIDATION_STAGES = [
-  {
-    stage: 1,
-    direction: "Load",
-    stress: "25",
-    eStart: "1.120",
-    eEnd: "1.098",
-    mv: "0.42",
-    cvRoot: "2.6",
-    cvLog: "2.3",
-  },
-  {
-    stage: 2,
-    direction: "Load",
-    stress: "50",
-    eStart: "1.098",
-    eEnd: "1.061",
-    mv: "0.71",
-    cvRoot: "2.2",
-    cvLog: "2.0",
-  },
-  {
-    stage: 3,
-    direction: "Load",
-    stress: "100",
-    eStart: "1.061",
-    eEnd: "0.987",
-    mv: "0.72",
-    cvRoot: "1.8",
-    cvLog: "1.6",
-  },
-  {
-    stage: 4,
-    direction: "Load",
-    stress: "200",
-    eStart: "0.987",
-    eEnd: "0.862",
-    mv: "0.61",
-    cvRoot: "1.4",
-    cvLog: "1.2",
-  },
-  {
-    stage: 5,
-    direction: "Unload",
-    stress: "50",
-    eStart: "0.862",
-    eEnd: "0.905",
-    mv: "-",
-    cvRoot: "-",
-    cvLog: "-",
-  },
-];
+// Consolidation stages start empty. Stages are added by the user while
+// entering a real test - no seeded example stages.
+const CONSOLIDATION_STAGES: {
+  stage: number;
+  direction: string;
+  stress: string;
+  eStart: string;
+  eEnd: string;
+  mv: string;
+  cvRoot: string;
+  cvLog: string;
+}[] = [];
 
 export function ResultsEntryTab() {
   const [selectedTest, setSelectedTest] =

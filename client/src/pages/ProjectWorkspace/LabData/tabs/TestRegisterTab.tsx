@@ -4,6 +4,7 @@ import {
   createProjectLabTest,
   ProjectSample,
 } from "../../../../api/fieldData";
+import { getLabMethods, type LabMethod } from "../../../../api/labMethods";
 
 interface TestRegisterTabProps {
   projectId: string;
@@ -21,9 +22,13 @@ export function TestRegisterTab({
     
 const [specimenRef, setSpecimenRef] = useState("SPEC-01");
 const [testType, setTestType] = useState("PSD");
-const [methodDefinitionId] = useState(
-  "00000000-0000-0000-0000-000000000001"
-);
+
+// Method definitions come from the lab methods API. The hardcoded
+// placeholder UUID is gone - test creation fails without a real
+// method_definition_id, so the dropdown must hold real rows.
+const [methods, setMethods] = useState<LabMethod[]>([]);
+const [methodError, setMethodError] = useState("");
+
 const [laboratory, setLaboratory] = useState("TDAC Laboratory");
 const [technician, setTechnician] = useState("");
 const [saving, setSaving] = useState(false);
@@ -48,6 +53,22 @@ const [saveError, setSaveError] = useState("");
     loadSamples();
   }, [projectId]);
 
+  useEffect(() => {
+    async function loadMethods() {
+      try {
+        setMethodError("");
+
+        const data = await getLabMethods();
+        setMethods(data);
+      } catch (err) {
+        console.error(err);
+        setMethodError("Failed to load method definitions.");
+      }
+    }
+
+    loadMethods();
+  }, []);
+
   if (loading) {
     return (
       <div className="card">
@@ -60,6 +81,19 @@ const [saveError, setSaveError] = useState("");
   async function handleCreateTest() {
     if (!selectedSample) return;
 
+    // A test cannot be created without a real method definition - the
+    // backend FK on method_definition_id rejects unknown values.
+    const method = methods.find(
+      (m) => m.test_type === testType
+    );
+
+    if (!method) {
+      setSaveError(
+        "No active method definition for this test type. Cannot create the test."
+      );
+      return;
+    }
+
     try {
         setSaving(true);
         setSaveError("");
@@ -69,7 +103,7 @@ const [saveError, setSaveError] = useState("");
         samp_id: selectedSample.sample_id,
         specimen_ref: specimenRef,
         test_type: testType,
-        method_definition_id: methodDefinitionId,
+        method_definition_id: method.method_definition_id,
         laboratory,
         technician: technician || undefined,
         });
@@ -200,6 +234,17 @@ const [saveError, setSaveError] = useState("");
         {saveError && (
             <p className="page-sub">
                 {saveError}
+            </p>
+            )}
+        {methodError && (
+            <p className="page-sub">
+                {methodError}
+            </p>
+            )}
+        {methods.length === 0 && !methodError && (
+            <p className="page-sub">
+                No active method definitions are seeded yet - test creation is
+                blocked until the lab methods are configured.
             </p>
             )}
 
