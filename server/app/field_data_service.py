@@ -644,3 +644,28 @@ async def get_project_lab_tests(project_id: str):
         )
 
     return rows
+
+async def get_project_sample_tests(project_id: str):
+    async with database.pool.acquire() as connection:
+        rows = await connection.fetch(
+            """
+            SELECT
+                s."SAMP_ID" AS sample_id,
+                s."LOCA_ID" AS loca_id,
+                t."test_id",
+                t."test_type",
+                t."status"
+            FROM "ags42"."SAMP" s
+            LEFT JOIN "lab"."test" t
+                ON t."samp_id" = s."SAMP_ID"
+                AND t."loca_id" = s."LOCA_ID"
+            WHERE s."PROJ_ID" = $1
+            ORDER BY
+                s."LOCA_ID",
+                s."SAMP_TOP",
+                t."created_at"
+            """,
+            project_id,
+        )
+
+    return rows

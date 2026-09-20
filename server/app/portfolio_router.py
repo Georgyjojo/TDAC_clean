@@ -25,7 +25,10 @@ from app.schemas.project import (
     LocaCreate,
     ProjectOverviewUpdate
 )
-from app.field_data_service import get_project_samples
+from app.field_data_service import (
+    get_project_samples,
+    get_project_sample_tests,
+)
 
 router = APIRouter(
     prefix="/api/portfolio",
@@ -413,6 +416,35 @@ async def project_lab_tests(
                 "status": row["status"],
                 "current_revision": row["current_revision"],
                 "created_at": row["created_at"],
+            }
+            for row in rows
+        ],
+    }
+
+@router.get("/projects/{project_id}/sample-tests")
+async def project_sample_tests(
+    project_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    rows = await get_project_sample_tests(project_id)
+
+    return {
+        "project_id": project_id,
+        "samples": [
+            {
+                "sample_id": row["sample_id"],
+                "loca_id": row["loca_id"],
+                "test_id": (
+                    str(row["test_id"])
+                    if row["test_id"] is not None
+                    else None
+                ),
+                "test_type": row["test_type"],
+                "status": (
+                    row["status"]
+                    if row["status"] is not None
+                    else "NOT_TESTED"
+                ),
             }
             for row in rows
         ],
