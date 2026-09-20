@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+ import { getLabResults, type LabResultRow } from "../../../../api/lab";
 
  interface HistoricFilter {
    project: string;
@@ -14,29 +15,56 @@ import { useState } from "react";
    test: "",
  };
 
- interface ApprovedResult {
+ interface HistoricDataTabProps {
    projectId: string;
-   sampleId: string;
-   depth: string;
-   material: string;
-   ll: string;
-   pi: string;
-   fines: string;
-   gs: string;
-   cu: string;
-   cc: string;
  }
 
- export function HistoricDataTab() {
-   const [filter, setFilter] = useState(EMPTY_FILTER);
+ export function HistoricDataTab({ projectId }: HistoricDataTabProps) {
+   const [filter, setFilter] = useState({
+     ...EMPTY_FILTER,
+     project: projectId,
+   });
 
-   // Approved results come from the lab results API in a later step.
-   // Until then the matrix shows an honest empty state, never fake rows.
-   const [results] = useState<ApprovedResult[]>([]);
+   const [results, setResults] = useState<LabResultRow[]>([]);
+   const [loading, setLoading] = useState(true);
+   const [error, setError] = useState<string | null>(null);
 
    function setField(field: keyof HistoricFilter, value: string) {
      setFilter((current) => ({ ...current, [field]: value }));
    }
+   
+     useEffect(() => {
+     let cancelled = false;
+
+     async function load() {
+       try {
+         setLoading(true);
+         setError(null);
+
+         const data = await getLabResults(projectId);
+
+         if (!cancelled) {
+           setResults(data);
+         }
+       } catch (err) {
+         if (!cancelled) {
+           setError(
+             err instanceof Error ? err.message : "Failed to load results"
+           );
+         }
+       } finally {
+         if (!cancelled) {
+           setLoading(false);
+         }
+       }
+     }
+
+     load();
+
+     return () => {
+       cancelled = true;
+     };
+   }, [projectId]);
 
    return (
      <div>
@@ -105,12 +133,21 @@ import { useState } from "react";
        <div className="card" style={{ marginTop: "12px" }}>
          <h3>Approved result matrix</h3>
 
-         {results.length === 0 ? (
+         {loading ? (
+           <div className="empty-state">
+             <h3>Loading results...</h3>
+           </div>
+         ) : error ? (
+           <div className="empty-state">
+             <h3>Could not load results</h3>
+             <p>{error}</p>
+           </div>
+         ) : results.length === 0 ? (
            <div className="empty-state">
              <h3>No approved results yet</h3>
              <p>
                Approved laboratory results for this filter will appear here
-               once the results API is connected.
+               once tests are approved and published.
              </p>
            </div>
          ) : (
@@ -133,17 +170,16 @@ import { useState } from "react";
                </thead>
                <tbody>
                  {results.map((result) => (
-                   <tr key={`${result.projectId}-${result.sampleId}`}>
-                     <td>{result.projectId}</td>
-                     <td>{result.sampleId}</td>
+                   <tr key={`${result.test_id}-${result.spec_ref ?? "sp"}`}>
+                     <td>{result.proj_id}</td>
+                     <td>{result.sample_id}</td>
                      <td className="num">{result.depth}</td>
-                     <td>{result.material}</td>
+                     <td>{result.test_type}</td>
                      <td className="num">{result.ll}</td>
                      <td className="num">{result.pi}</td>
-                     <td className="num">{result.fines}</td>
-                     <td className="num">{result.gs}</td>
-                     <td className="num">{result.cu}</td>
-                     <td className="num">{result.cc}</td>
+                     <td colSpan={4} className="cell-dim">
+                       -
+                     </td>
                      <td>
                        <span className="chip chip-ok">Approved</span>
                      </td>

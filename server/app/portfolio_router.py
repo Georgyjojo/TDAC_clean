@@ -4,6 +4,8 @@ from app.schemas.lab_data import LabTestCreate
 from app.lab_data_service import (
     create_lab_test,
     get_project_lab_tests,
+    get_approved_results,
+    get_review_queue,
 )
 from app.auth.dependencies import get_current_user
 from app.portfolio_service import (
@@ -417,3 +419,38 @@ async def project_lab_tests(
             for row in rows
         ],
     }
+
+@router.get("/projects/{project_id}/lab/results")
+async def project_lab_results(
+    project_id: str,
+    sample: str | None = None,
+    depth_from: float | None = None,
+    depth_to: float | None = None,
+    test_type: str | None = None,
+    current_user: dict = Depends(get_current_user),
+):
+    rows = await get_approved_results(
+        project_id=project_id,
+        sample=sample,
+        depth_from=depth_from,
+        depth_to=depth_to,
+        test_type=test_type,
+    )
+
+    return {
+        "project_id": project_id,
+        "results": rows,
+    }
+
+@router.get("/projects/{project_id}/lab/review-queue")
+async def project_lab_review_queue(
+    project_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    rows = await get_review_queue(project_id)
+
+    return {
+        "project_id": project_id,
+        "queue": rows,
+    }
+

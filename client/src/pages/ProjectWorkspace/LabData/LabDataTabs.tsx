@@ -56,8 +56,12 @@ export function LabDataTabs({
           <TestRegisterTab projectId={projectId} />
         )}
         {activeTab === "results-entry" && <ResultsEntryTab />}
-        {activeTab === "historic-data" && <HistoricDataTab />}
-        {activeTab === "qa-approval" && <QAApprovalTab />}
+        {activeTab === "historic-data" && (
+           <HistoricDataTab projectId={projectId} />
+        )}
+        {activeTab === "qa-approval" && (
+           <QAApprovalTab projectId={projectId} />
+        )}
         {activeTab === "ags-mapping" && <AGSMappingTab />}
       </div>
     </div>
