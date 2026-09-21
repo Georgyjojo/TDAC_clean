@@ -288,7 +288,11 @@ export function QAApprovalTab({ projectId }: QAApprovalTabProps) {
           <button
             type="button"
             className="btn btn-sm"
-            disabled={busy || !selected}
+            disabled={
+              busy ||
+              !selected ||
+              !["SUBMITTED", "CHECKED"].includes(selected.status)
+            }
             onClick={() => runAction("return")}
           >
             Return with comments
