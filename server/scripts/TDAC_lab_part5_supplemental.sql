@@ -9,19 +9,28 @@
 --    The trial/stage tables FK to lab.test_revision on (test_id, revision_no),
 --    so a test without any revision cannot have trials inserted against it.
 --    test_revision is keyed on (test_id, revision_no) - guarded idempotently.
+--    Mirrors the revision insert shape used in PART 4.
 -- ----------------------------------------------------------------------------
 INSERT INTO lab.test_revision (
-    test_id, revision_no, status, revision_note
+    test_id, revision_no, raw_input_snapshot,
+    calculation_package, calculation_package_version,
+    method_definition_id, revision_reason, status,
+    immutable, created_at, created_by
 )
-SELECT t.test_id, 1, 'CALCULATED', 'Initial revision (part 5 supplemental seed)'
+SELECT t.test_id, 1,
+       '{"consolidation_stages":[],"readings":{}}'::jsonb,
+       'consolidation', '1',
+       t.method_definition_id,
+       'Initial revision (part 5 supplemental seed)',
+       'CALCULATED',
+       false, now(), 'seed'
 FROM lab.test t
 WHERE t.samp_id = 'TDAC-2026-09-901-7'
   AND t.test_type = 'CONSOLIDATION'
   AND NOT EXISTS (
     SELECT 1 FROM lab.test_revision r
     WHERE r.test_id = t.test_id AND r.revision_no = 1
-  )
-ON CONFLICT DO NOTHING;
+  );
 
 -- ----------------------------------------------------------------------------
 -- 1. Groundwater - written to the EXISTING standard AGS water-strike table
