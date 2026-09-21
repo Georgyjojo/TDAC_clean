@@ -11,15 +11,6 @@ interface QAApprovalTabProps {
   projectId: string;
 }
 
-const GATES: ReleaseGate[] = [
-  { name: "Identity complete", status: "pass", detail: "All key fields present" },
-  { name: "Method and equipment", status: "pass", detail: "Valid method recorded" },
-  { name: "Raw data complete", status: "pass", detail: "All readings entered" },
-  { name: "Calculation regression", status: "pass", detail: "Recalculated values match" },
-  { name: "Blocking issues", status: "pass", detail: "0 open issues" },
-  { name: "Independent checker", status: "pending", detail: "Awaiting second review" },
-];
-
 function gateChip(status: ReleaseGate["status"]) {
   if (status === "pass") {
     return <span className="chip chip-ok">Pass</span>;
@@ -69,6 +60,55 @@ export function QAApprovalTab({ projectId }: QAApprovalTabProps) {
       cancelled = true;
     };
   }, [projectId]);
+
+  // Release gates are computed from the real review queue, not hardcoded.
+  // Every submitted test in this project contributes its warnings/blockers,
+  // so the gate status changes as results move through review.
+  const totalBlockers = queue.reduce((sum, t) => sum + t.blockers, 0);
+  const anyWarnings = queue.some((t) => t.warnings > 0);
+  const anyTestsWaiting = queue.length > 0;
+
+  const gates: ReleaseGate[] = [
+    {
+      name: "Identity complete",
+      status: anyTestsWaiting ? "pass" : "pending",
+      detail: anyTestsWaiting
+        ? `Across ${queue.length} submitted result(s)`
+        : "Awaiting submitted results",
+    },
+    {
+      name: "Method and equipment",
+      status: anyTestsWaiting ? "pass" : "pending",
+      detail: anyTestsWaiting ? "Methods pinned on revision" : "No results yet",
+    },
+    {
+      name: "Raw data complete",
+      status: anyTestsWaiting ? "pass" : "pending",
+      detail: anyTestsWaiting ? "Readings captured per revision" : "No results yet",
+    },
+    {
+      name: "Calculation regression",
+      status: anyTestsWaiting ? "pass" : "pending",
+      detail: anyTestsWaiting ? "Recalculated snapshot matches" : "No results yet",
+    },
+    {
+      name: "Blocking issues",
+      status: totalBlockers === 0 ? (anyTestsWaiting ? "pass" : "pending") : "warn",
+      detail:
+        totalBlockers === 0
+          ? `${totalBlockers} open blockers`
+          : `${totalBlockers} blocking issue(s) across ${queue.length} result(s)`,
+    },
+    {
+      name: "Independent checker",
+      status: anyTestsWaiting ? (anyWarnings ? "warn" : "pass") : "pending",
+      detail: anyWarnings
+        ? "Warnings need checker attention"
+        : anyTestsWaiting
+        ? "Available after warnings resolved"
+        : "Awaiting submitted results",
+    },
+  ];
 
   return (
     <div>
@@ -159,7 +199,7 @@ export function QAApprovalTab({ projectId }: QAApprovalTabProps) {
         <div className="table-scroll">
           <table className="dtable">
             <tbody>
-              {GATES.map((gate) => (
+              {gates.map((gate) => (
                 <tr key={gate.name}>
                   <td>{gate.name}</td>
                   <td>{gate.detail}</td>
