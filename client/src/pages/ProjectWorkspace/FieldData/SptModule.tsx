@@ -3,6 +3,7 @@ import {
   getSptRecords,
   createSptRecord,
   updateSptRecord,
+  deleteSptRecord,
   type SptRecord,
   type SptCreate,
   type SptUpdate,
@@ -164,6 +165,44 @@ export function SptModule({ projectId, locaId }: SptModuleProps) {
       setSaving(false);
     }
   }
+
+  async function deleteRecord(record: SptRecord) {
+  const confirmed = window.confirm(
+    `Delete the SPT record at ${record.spt_depth} m?`
+  );
+
+  if (!confirmed) {
+    return;
+  }
+
+  try {
+    setSaveError(null);
+
+    await deleteSptRecord(
+      projectId,
+      locaId,
+      record.spt_depth
+    );
+
+    setRecords((current) =>
+      current.filter(
+        (item) =>
+          item.spt_depth !== record.spt_depth
+      )
+    );
+  } catch (err) {
+    console.error(
+      "Failed to delete SPT record:",
+      err
+    );
+
+    setSaveError(
+      err instanceof Error
+        ? err.message
+        : "Unable to delete SPT record."
+    );
+  }
+}
 
   if (loading) {
     return <p className="page-sub">Loading Field Data…</p>;
@@ -433,13 +472,23 @@ export function SptModule({ projectId, locaId }: SptModuleProps) {
                         <td className="num">{formatNumber(record.blows_45)}</td>
                         <td className="num">{formatNumber(record.n_value)}</td>
                         <td>
-                          <button
-                            type="button"
-                            className="btn btn-sm"
-                            onClick={() => startEdit(record)}
-                          >
-                            Edit
-                          </button>
+                          <div className="actions">
+                            <button
+                              type="button"
+                              className="btn btn-sm"
+                              onClick={() => startEdit(record)}
+                            >
+                              Edit
+                            </button>
+
+                            <button
+                              type="button"
+                              className="btn btn-sm"
+                              onClick={() => deleteRecord(record)}
+                            >
+                              Delete
+                            </button>
+                          </div>
                         </td>
                       </>
                     )}

@@ -94,6 +94,7 @@ async def create_project_record(
                 chainage_text=project.metadata.chainage_text,
                 structure_reference=project.metadata.structure_reference,
                 selected_boreholes=project.metadata.selected_boreholes,
+                project_type=project.metadata.project_type,
                 report_type=project.metadata.report_type,
                 report_title=project.metadata.report_title,
                 report_volume_title=project.metadata.report_volume_title,
@@ -214,6 +215,7 @@ async def project_record(
         "project_client": project["PROJ_CLNT"],
         "consultant_name": project["PROJ_ENG"],
         "contractor_name": project["PROJ_CONT"],
+        "project_type": project["PROJECT_TYPE"],
     }
 
 @router.get("/projects/{project_id}/metadata")

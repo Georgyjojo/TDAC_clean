@@ -424,6 +424,19 @@ function startEditing() {
                 </div>
 
                 <div>
+                  <span>Project Type</span>
+                  <strong>
+                    {project.project_type === "LAB_ONLY"
+                      ? "Lab Only"
+                      : project.project_type === "REPORT_ONLY"
+                        ? "Report Only"
+                        : project.project_type === "LAB_AND_REPORT"
+                          ? "Lab + Report"
+                          : "—"}
+                  </strong>
+                </div>
+
+                <div>
                   <span>Client Name</span>
                   <strong>{project.project_client || "—"}</strong>
                 </div>

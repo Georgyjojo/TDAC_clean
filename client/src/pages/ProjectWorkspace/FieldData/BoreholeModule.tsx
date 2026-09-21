@@ -3,6 +3,7 @@ import {
   getBoreholeRecords,
   createBoreholeRecord,
   updateBoreholeRecord,
+  deleteBoreholeRecord,
   type BoreholeRecord,
   type BoreholeCreate,
   type BoreholeUpdate,
@@ -199,6 +200,44 @@ export function BoreholeModule({
       );
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function deleteRecord(record: BoreholeRecord) {
+    const confirmed = window.confirm(
+      `Delete the borehole record at ${record.depth_from} m?`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setSaveError(null);
+
+      await deleteBoreholeRecord(
+        projectId,
+        locaId,
+        record.depth_from
+      );
+
+      setRecords((current) =>
+        current.filter(
+          (item) =>
+            item.depth_from !== record.depth_from
+        )
+      );
+    } catch (err) {
+      console.error(
+        "Failed to delete borehole record:",
+        err
+      );
+
+      setSaveError(
+        err instanceof Error
+          ? err.message
+          : "Unable to delete borehole record."
+      );
     }
   }
 
@@ -585,15 +624,27 @@ export function BoreholeModule({
                           </td>
 
                           <td>
-                            <button
-                              type="button"
-                              className="btn btn-sm"
-                              onClick={() =>
-                                startEdit(record)
-                              }
-                            >
-                              Edit
-                            </button>
+                            <div className="actions">
+                              <button
+                                type="button"
+                                className="btn btn-sm"
+                                onClick={() =>
+                                  startEdit(record)
+                                }
+                              >
+                                Edit
+                              </button>
+
+                              <button
+                                type="button"
+                                className="btn btn-sm"
+                                onClick={() =>
+                                  deleteRecord(record)
+                                }
+                              >
+                                Delete
+                              </button>
+                            </div>
                           </td>
                         </>
                       )}

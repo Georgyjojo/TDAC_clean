@@ -37,6 +37,8 @@ export interface CreateProjectMetadata {
   structure_reference?: string | null;
   selected_boreholes?: string | null;
 
+  project_type?: string | null;
+
   report_type?: string | null;
   report_title?: string | null;
   report_volume_title?: string | null;

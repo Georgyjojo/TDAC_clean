@@ -3,6 +3,7 @@ import {
   getSamplingRecords,
   createSamplingRecord,
   updateSamplingRecord,
+  deleteSamplingRecord,
   type SamplingRecord,
   type SamplingCreate,
   type SamplingUpdate,
@@ -177,6 +178,44 @@ export function SamplingModule({ projectId, locaId }: SamplingModuleProps) {
   if (error) {
     return <p className="page-sub field-error">{error}</p>;
   }
+
+  async function deleteRecord(record: SamplingRecord) {
+  const confirmed = window.confirm(
+    `Delete the sampling/coring record at ${record.depth_from} m?`
+  );
+
+  if (!confirmed) {
+    return;
+  }
+
+  try {
+    setSaveError(null);
+
+    await deleteSamplingRecord(
+      projectId,
+      locaId,
+      record.depth_from
+    );
+
+    setRecords((current) =>
+      current.filter(
+        (item) =>
+          item.depth_from !== record.depth_from
+      )
+    );
+  } catch (err) {
+    console.error(
+      "Failed to delete sampling/coring record:",
+      err
+    );
+
+    setSaveError(
+      err instanceof Error
+        ? err.message
+        : "Unable to delete sampling/coring record."
+    );
+  }
+}
 
   return (
     <div>
@@ -510,13 +549,23 @@ export function SamplingModule({ projectId, locaId }: SamplingModuleProps) {
                           </>
                         )}
                         <td>
-                          <button
-                            type="button"
-                            className="btn btn-sm"
-                            onClick={() => startEdit(record)}
-                          >
-                            Edit
-                          </button>
+                          <div className="actions">
+                            <button
+                              type="button"
+                              className="btn btn-sm"
+                              onClick={() => startEdit(record)}
+                            >
+                              Edit
+                            </button>
+
+                            <button
+                              type="button"
+                              className="btn btn-sm"
+                              onClick={() => deleteRecord(record)}
+                            >
+                              Delete
+                            </button>
+                          </div>
                         </td>
                       </>
                     )}

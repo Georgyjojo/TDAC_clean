@@ -20,10 +20,12 @@ from app.field_data_service import (
     get_spt_records,
     create_spt_record,
     update_spt_record,
+    delete_spt_record,
     get_sampling_records,
     create_sampling_record,
     update_sampling_record,
     get_project_samples,
+    delete_borehole_record,
 )
 
 
@@ -144,6 +146,30 @@ async def update_borehole(
         },
     }
 
+@router.delete("/borehole/{depth_from}")
+async def delete_borehole(
+    project_id: str,
+    loca_id: str,
+    depth_from: Decimal,
+    current_user: dict = Depends(get_current_user),
+):
+    await _require_loca(project_id, loca_id)
+
+    result = await delete_borehole_record(
+        project_id=project_id,
+        loca_id=loca_id,
+        depth_from=depth_from,
+    )
+
+    if result == "DELETE 0":
+        raise HTTPException(
+            status_code=404,
+            detail="Borehole record not found.",
+        )
+
+    return {
+        "message": "Borehole record deleted successfully",
+    }
 
 # ---------------------------------------------------------------------------
 # SPT
@@ -244,6 +270,31 @@ async def update_spt(
         },
     }
 
+@router.delete("/spt/{spt_depth}")
+async def delete_spt(
+    project_id: str,
+    loca_id: str,
+    spt_depth: Decimal,
+    current_user: dict = Depends(get_current_user),
+):
+    await _require_loca(project_id, loca_id)
+
+    result = await delete_spt_record(
+        project_id=project_id,
+        loca_id=loca_id,
+        spt_depth=spt_depth,
+    )
+
+    if result == "DELETE 0":
+        raise HTTPException(
+            status_code=404,
+            detail="SPT record not found.",
+        )
+
+    return {
+        "message": "SPT record deleted successfully",
+    }
+
 
 # ---------------------------------------------------------------------------
 # Sampling / Coring
@@ -333,6 +384,37 @@ async def update_sampling(
     return {
         "message": "Sampling/coring record updated successfully",
         "record": updated,
+    }
+
+@router.delete("/sampling/{depth_from}")
+async def delete_sampling(
+    project_id: str,
+    loca_id: str,
+    depth_from: Decimal,
+    current_user: dict = Depends(get_current_user),
+):
+    await _require_loca(project_id, loca_id)
+
+    try:
+        deleted = await delete_sampling_record(
+            project_id=project_id,
+            loca_id=loca_id,
+            depth_from=depth_from,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail=str(exc),
+        )
+
+    if not deleted:
+        raise HTTPException(
+            status_code=404,
+            detail="Sampling/coring record not found.",
+        )
+
+    return {
+        "message": "Sampling/coring record deleted successfully",
     }
 
 @router.get("/samples")

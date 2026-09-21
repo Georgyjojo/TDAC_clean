@@ -77,6 +77,32 @@ export async function updateBoreholeRecord(
   return result.record;
 }
 
+export async function deleteBoreholeRecord(
+  projectId: string,
+  locaId: string,
+  depthFrom: number
+): Promise<void> {
+  const response = await apiClient(
+    `/api/portfolio/projects/${encodeURIComponent(
+      projectId
+    )}/locas/${encodeURIComponent(
+      locaId
+    )}/field-data/borehole/${encodeURIComponent(depthFrom)}`,
+    {
+      method: "DELETE",
+    }
+  );
+
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => null);
+
+    throw new Error(
+      errorBody?.detail ??
+        `Failed to delete borehole record: ${response.status}`
+    );
+  }
+}
+
 export async function createBoreholeRecord(
   projectId: string,
   locaId: string,
@@ -181,6 +207,32 @@ export async function updateSptRecord(
 
   const result = await response.json();
   return result.record;
+}
+
+export async function deleteSptRecord(
+  projectId: string,
+  locaId: string,
+  sptDepth: number
+): Promise<void> {
+  const response = await apiClient(
+    `/api/portfolio/projects/${encodeURIComponent(
+      projectId
+    )}/locas/${encodeURIComponent(
+      locaId
+    )}/field-data/spt/${encodeURIComponent(sptDepth)}`,
+    {
+      method: "DELETE",
+    }
+  );
+
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => null);
+
+    throw new Error(
+      errorBody?.detail ??
+        `Failed to delete SPT record: ${response.status}`
+    );
+  }
 }
 
 export async function createSptRecord(
@@ -293,6 +345,32 @@ export async function updateSamplingRecord(
 
   const result = await response.json();
   return result.record;
+}
+
+export async function deleteSamplingRecord(
+  projectId: string,
+  locaId: string,
+  depthFrom: number
+): Promise<void> {
+  const response = await apiClient(
+    `/api/portfolio/projects/${encodeURIComponent(
+      projectId
+    )}/locas/${encodeURIComponent(
+      locaId
+    )}/field-data/sampling/${encodeURIComponent(depthFrom)}`,
+    {
+      method: "DELETE",
+    }
+  );
+
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => null);
+
+    throw new Error(
+      errorBody?.detail ??
+        `Failed to delete sampling record: ${response.status}`
+    );
+  }
 }
 
 export async function createSamplingRecord(
