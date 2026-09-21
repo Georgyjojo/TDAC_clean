@@ -599,19 +599,17 @@ async def get_project_samples(project_id: str):
         rows = await connection.fetch(
             """
             SELECT
-                sri."SAMPLE_ID" AS sample_id,
-                sri."LOCA_ID" AS loca_id,
-                sri."DEPTH_FROM" AS depth_from,
-                c."CORE_BASE" AS depth_to
-            FROM "tdac"."SAMPLING_RECORD_ID" sri
-            LEFT JOIN "ags42"."CORE" c
-                ON c."PROJ_ID" = sri."PROJ_ID"
-                AND c."LOCA_ID" = sri."LOCA_ID"
-                AND c."CORE_TOP" = sri."DEPTH_FROM"
-            WHERE sri."PROJ_ID" = $1
+                s."SAMP_ID" AS sample_id,
+                s."LOCA_ID" AS loca_id,
+                s."SAMP_REF" AS spec_ref,
+                s."SAMP_TOP" AS depth_from,
+                s."SAMP_BASE" AS depth_to,
+                s."SAMP_TYPE" AS sample_type
+            FROM "ags42"."SAMP" s
+            WHERE s."PROJ_ID" = $1
             ORDER BY
-                sri."LOCA_ID",
-                sri."DEPTH_FROM"
+                s."LOCA_ID",
+                s."SAMP_TOP"
             """,
             project_id,
         )

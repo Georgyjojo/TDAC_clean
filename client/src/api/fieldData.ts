@@ -355,8 +355,10 @@ export async function getGroundwaterStatus(
 export interface ProjectSample {
   sample_id: string;
   loca_id: string;
+  spec_ref?: string | null;
   depth_from: number;
   depth_to: number | null;
+  sample_type?: string | null;
 }
 
 export async function getProjectSamples(

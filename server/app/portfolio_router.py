@@ -347,8 +347,10 @@ async def project_samples(
             {
                 "sample_id": row["sample_id"],
                 "loca_id": row["loca_id"],
+                "spec_ref": row.get("spec_ref"),
                 "depth_from": row["depth_from"],
-                "depth_to": row["depth_to"],
+                "depth_to": row.get("depth_to"),
+                "sample_type": row.get("sample_type"),
             }
             for row in rows
         ],
