@@ -3,6 +3,8 @@ import { getProjectLabTests } from "../../../../api/fieldData";
 
 interface OverviewTabProps {
   projectId: string;
+  onAddTest: () => void;
+  onOpenResults: (testId: string) => void;
 }
 
 interface LabTest {
@@ -24,6 +26,8 @@ interface LabTest {
 
 export function OverviewTab({
   projectId,
+  onAddTest,
+  onOpenResults,
 }: OverviewTabProps) {
   const [tests, setTests] = useState<LabTest[]>([]);
   const [loading, setLoading] = useState(true);
@@ -79,7 +83,7 @@ export function OverviewTab({
         <div className="lab-overview-actions">
           <button
             type="button"
-            className="button-secondary"
+            className="lab-overview-refresh-button"
             onClick={loadTests}
           >
             Refresh
@@ -87,7 +91,8 @@ export function OverviewTab({
 
           <button
             type="button"
-            className="button-primary"
+            className="lab-overview-add-button"
+            onClick={onAddTest}
           >
             Add Test
           </button>
@@ -208,18 +213,19 @@ export function OverviewTab({
                         <td>—</td>
 
                         <td>
-                        <button
+                          <button
                             type="button"
                             className="lab-work-action"
-                        >
+                            onClick={() => onOpenResults(test.test_id)}
+                          >
                             {test.status === "SUBMITTED" ||
                             test.status === "CHECKED"
-                            ? "Review"
-                            : test.status === "APPROVED" ||
-                                test.status === "PUBLISHED"
+                              ? "Review"
+                              : test.status === "APPROVED" ||
+                                  test.status === "PUBLISHED"
                                 ? "View"
                                 : "Open"}
-                        </button>
+                          </button>
                         </td>
                     </tr>
                     ))}
