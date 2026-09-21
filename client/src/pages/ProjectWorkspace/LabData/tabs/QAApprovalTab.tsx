@@ -61,7 +61,6 @@ export function QAApprovalTab({ projectId }: QAApprovalTabProps) {
     };
   }, [projectId]);
 
-  // Release gates are computed from the real review queue, not hardcoded.
   // Every submitted test in this project contributes its warnings/blockers,
   // so the gate status changes as results move through review.
   const totalBlockers = queue.reduce((sum, t) => sum + t.blockers, 0);
