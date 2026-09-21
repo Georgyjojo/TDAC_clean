@@ -44,7 +44,7 @@ class TestDatabaseModule:
 
         monkeypatch.setenv("DB_HOST", "dbhost")
         monkeypatch.setenv("DB_PORT", "5433")
-        monkeypatch.setenv("DB_NAME", "tdacdb")
+        monkeypatch.setenv("DB_NAME", "ags42_data")
         monkeypatch.setenv("DB_USER", "dbuser")
         monkeypatch.setenv("DB_PASSWORD", "dbpass")
         importlib.reload(database)
@@ -52,7 +52,7 @@ class TestDatabaseModule:
         cfg = fake_asyncpg["config"]
         assert cfg["host"] == "dbhost"
         assert cfg["port"] == 5433
-        assert cfg["database"] == "tdacdb"
+        assert cfg["database"] == "ags42_data"
         assert cfg["user"] == "dbuser"
         assert cfg["password"] == "dbpass"
         assert cfg["min_size"] == 1 and cfg["max_size"] == 10

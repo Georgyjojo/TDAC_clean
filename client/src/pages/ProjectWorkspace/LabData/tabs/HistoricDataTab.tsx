@@ -1,5 +1,16 @@
 import { useEffect, useState } from "react";
  import { getLabResults, type LabResultRow } from "../../../../api/lab";
+ import { getLabMethods, type LabMethod } from "../../../../api/labMethods";
+
+ /** Database status -> the words the laboratory uses. */
+ const STATUS_LABEL: Record<string, string> = {
+   APPROVED: "Approved (not released)",
+   PUBLISHED: "Released to AGS",
+ };
+
+ function statusLabel(status: string) {
+   return STATUS_LABEL[status] ?? status;
+ }
 
  interface HistoricFilter {
    project: string;
@@ -26,8 +37,63 @@ import { useEffect, useState } from "react";
    });
 
    const [results, setResults] = useState<LabResultRow[]>([]);
+   const [methods, setMethods] = useState<LabMethod[]>([]);
    const [loading, setLoading] = useState(true);
    const [error, setError] = useState<string | null>(null);
+
+   // The test-type filter lists the test types the laboratory's active method
+   // definitions actually cover, so the options come from the database.
+   useEffect(() => {
+     getLabMethods()
+       .then(setMethods)
+       .catch(() => setMethods([]));
+   }, []);
+
+   const testTypeOptions = Array.from(
+     new Set(methods.map((method) => method.test_type))
+   ).sort();
+
+   // Exports exactly the rows on screen. This is the same query result the
+   // table renders - no second data source.
+   function exportSelection() {
+     const header = [
+       "TEST_ID",
+       "PROJ_ID",
+       "LOCA_ID",
+       "SAMP_ID",
+       "SPEC_REF",
+       "DEPTH",
+       "TEST_TYPE",
+       "STATUS",
+       "LL",
+       "PI",
+     ];
+
+     const csv = [
+       header.join(","),
+       ...results.map((row) =>
+         [
+           row.test_id,
+           row.proj_id,
+           row.loca_id,
+           row.sample_id,
+           row.spec_ref ?? "",
+           row.depth ?? "",
+           row.test_type,
+           row.status,
+           row.ll ?? "",
+           row.pi ?? "",
+         ].join(",")
+       ),
+     ].join("\n");
+
+     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+     const link = document.createElement("a");
+     link.href = url;
+     link.download = `historic-lab-results-${projectId}.csv`;
+     link.click();
+     URL.revokeObjectURL(url);
+   }
 
    function setField(field: keyof HistoricFilter, value: string) {
        setFilter((current) => ({ ...current, [field]: value }));
@@ -111,9 +177,13 @@ import { useEffect, useState } from "react";
          </div>
 
          <div className="actions">
-           <button type="button" className="btn btn-sm">Save filter</button>
-           <button type="button" className="btn btn-sm btn-primary">
-             Export selection
+           <button
+             type="button"
+             className="btn btn-sm btn-primary"
+             onClick={exportSelection}
+             disabled={results.length === 0}
+           >
+             Export selection ({results.length})
            </button>
          </div>
        </div>
@@ -124,13 +194,9 @@ import { useEffect, useState } from "react";
          <div className="form-grid">
            <label>
              <span className="eyebrow">Project</span>
-             <select
-               className="modal-input"
-               value={filter.project}
-               onChange={(event) => setField("project", event.target.value)}
-             >
-               <option value="">All accessible projects</option>
-             </select>
+             {/* The module is opened from a project workspace, so the query is
+                 always scoped to that project - shown, not chosen. */}
+             <input className="modal-input" value={projectId} readOnly />
            </label>
 
            <label>
@@ -161,13 +227,19 @@ import { useEffect, useState } from "react";
                onChange={(event) => setField("test", event.target.value)}
              >
                <option value="">All laboratory tests</option>
+
+               {testTypeOptions.map((testType) => (
+                 <option key={testType} value={testType}>
+                   {testType}
+                 </option>
+               ))}
              </select>
            </label>
          </div>
        </div>
 
        <div className="card" style={{ marginTop: "12px" }}>
-         <h3>Approved result matrix</h3>
+         <h3>Released result matrix</h3>
 
          {loading ? (
            <div className="empty-state">
@@ -180,10 +252,11 @@ import { useEffect, useState } from "react";
            </div>
          ) : results.length === 0 ? (
            <div className="empty-state">
-             <h3>No approved results yet</h3>
+             <h3>No released results for this filter</h3>
              <p>
-               Approved laboratory results for this filter will appear here
-               once tests are approved and published.
+               Approved and published laboratory results appear here. Approve a
+               revision on the QA and Approval tab, then Publish it to release
+               the values.
              </p>
            </div>
          ) : (
@@ -192,32 +265,48 @@ import { useEffect, useState } from "react";
                <thead>
                  <tr>
                    <th>Project</th>
-                   <th>Sample</th>
+                   <th>Location</th>
+                   <th>Sample / specimen</th>
                    <th>Depth (m)</th>
-                   <th>Material</th>
+                   <th>Test</th>
                    <th>LL</th>
                    <th>PI</th>
-                   <th>Fines</th>
-                   <th>Gs</th>
-                   <th>cu</th>
-                   <th>Cc</th>
+                   <th>Released values</th>
                    <th>Status</th>
                  </tr>
                </thead>
                <tbody>
                  {results.map((result) => (
-                   <tr key={`${result.test_id}-${result.spec_ref ?? "sp"}`}>
+                   <tr key={result.test_id}>
                      <td>{result.proj_id}</td>
-                     <td>{result.sample_id}</td>
-                     <td className="num">{result.depth}</td>
+                     <td>{result.loca_id}</td>
+                     <td>
+                       {result.sample_id}
+                       {result.spec_ref ? ` · ${result.spec_ref}` : ""}
+                     </td>
+                     <td className="num">{result.depth ?? "—"}</td>
                      <td>{result.test_type}</td>
-                     <td className="num">{result.ll}</td>
-                     <td className="num">{result.pi}</td>
-                     <td colSpan={4} className="cell-dim">
-                       -
+                     <td className="num">{result.ll ?? "—"}</td>
+                     <td className="num">{result.pi ?? "—"}</td>
+                     <td className="cell-dim">
+                       {/* The released output keys carried by the current
+                           revision snapshot, read straight from the database. */}
+                       {Object.keys(result.outputs ?? {}).length === 0
+                         ? "—"
+                         : Object.entries(result.outputs)
+                             .map(([key, value]) => `${key}=${value}`)
+                             .join(", ")}
                      </td>
                      <td>
-                       <span className="chip chip-ok">Approved</span>
+                       <span
+                         className={
+                           result.status === "PUBLISHED"
+                             ? "chip chip-ok"
+                             : "chip chip-info"
+                         }
+                       >
+                         {statusLabel(result.status)}
+                       </span>
                      </td>
                    </tr>
                  ))}
@@ -234,20 +323,32 @@ import { useEffect, useState } from "react";
            <table className="dtable">
              <tbody>
                <tr>
-                 <td>Results shown</td>
-                 <td>Approved only</td>
+                 <td>Rows shown</td>
+                 <td>
+                   {results.length} released test(s):{" "}
+                   {results.filter((row) => row.status === "APPROVED").length}{" "}
+                   approved,{" "}
+                   {results.filter((row) => row.status === "PUBLISHED").length}{" "}
+                   published
+                 </td>
                </tr>
                <tr>
-                 <td>Project profile</td>
-                 <td>AGS 4.2</td>
+                 <td>Source of values</td>
+                 <td>
+                   lab.test_revision.calculation_output_snapshot for the current
+                   revision of each test
+                 </td>
                </tr>
                <tr>
-                 <td>Unit normalization</td>
-                 <td>SI</td>
+                 <td>Unit handling</td>
+                 <td>Values are shown as stored on the revision; no conversion</td>
                </tr>
                <tr>
-                 <td>Superseded records</td>
-                 <td>Hidden</td>
+                 <td>Excluded by the query</td>
+                 <td>
+                   Draft, calculated, submitted, checked, returned, superseded
+                   and void tests
+                 </td>
                </tr>
              </tbody>
            </table>

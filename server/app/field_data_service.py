@@ -619,6 +619,11 @@ async def get_project_samples(project_id: str):
     return rows
 
 async def get_project_lab_tests(project_id: str):
+    # lab.test has no project_id column - tests are linked to a project
+    # through ags42."SAMP" (samp_id + loca_id), exactly like
+    # lab_data_service.get_project_lab_tests. Joining on the pair also
+    # keeps tests from other projects that happen to reuse a sample id
+    # out of the result.
     async with database.pool.acquire() as connection:
         rows = await connection.fetch(
             """
@@ -636,7 +641,10 @@ async def get_project_lab_tests(project_id: str):
                 t."current_revision",
                 t."created_at"
             FROM "lab"."test" t
-            WHERE t."project_id" = $1
+            INNER JOIN "ags42"."SAMP" s
+                ON s."SAMP_ID" = t."samp_id"
+               AND s."LOCA_ID" = t."loca_id"
+            WHERE s."PROJ_ID" = $1
             ORDER BY
                 t."created_at" DESC
             """,

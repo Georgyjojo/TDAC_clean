@@ -1,8 +1,7 @@
 #!/bin/sh
 # Local end-to-end proof against a real Postgres.
-# Runs against the ISOLATED test database: set DB_NAME=tdacdb in server/.env
-# (created once by scripts/init_local_db.sql) before starting uvicorn, so
-# test rows never land in the real ags42_data. Restore DB_NAME afterwards.
+# Runs against the single real database ags42_data (DB_NAME in server/.env).
+# The lab tables start empty, so the e2e rows are easy to spot and delete.
 # Assumes uvicorn is already running on :8000 (background terminal task).
 cd "$(dirname "$0")/.." || exit 1
 mkdir -p work
@@ -82,7 +81,7 @@ with urllib.request.urlopen(req) as r:
 PYEOF
 
 echo "== verify rows landed in real Postgres =="
-psql -h 127.0.0.1 -U postgres -d tdacdb \
+psql -h 127.0.0.1 -U postgres -d ags42_data \
   -c 'SELECT "PROJ_ID", "PROJ_NAME" FROM "ags42"."PROJ" WHERE "PROJ_ID" = $$901$$' \
   -c 'SELECT "LOCA_ID", "LOCA_FDEP" FROM "ags42"."LOCA"' \
   -c 'SELECT COUNT(*) AS geol_rows FROM "ags42"."GEOL"' \

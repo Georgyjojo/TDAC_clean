@@ -101,14 +101,23 @@
 
 .workflow-item {
   display: flex;
+  flex-direction: column;
   min-height: 60px;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 4px;
+  padding: 8px 10px;
+  text-align: center;
   border: 1px solid #d4e0e7;
   border-radius: 10px;
   background: #ffffff;
   color: #173b52;
+}
+
+.workflow-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .workflow-item.active {
@@ -117,13 +126,21 @@
   color: #ffffff;
 }
 
-/* Completed earlier steps: stay a filled dark-green so the stepper shows
-   progression (1-4 done after calculate) instead of a single active box. */
+/* Completed stages stay a filled light green so the stepper shows real
+   progression instead of a single active box. */
 .workflow-item.done {
   background: #e2eef0;
   border-color: #a9c8cd;
   color: #173b52;
   font-weight: 600;
+}
+
+/* Stage not reached yet. Dashed and muted so it can never read as progress. */
+.workflow-item.pending {
+  background: #fbfdfe;
+  border-color: #dbe6ea;
+  border-style: dashed;
+  color: #6f8590;
 }
 
 .workflow-number {
@@ -135,50 +152,31 @@
   font-size: 14px;
 }
 
+.workflow-caption {
+  font-size: 11.5px;
+  line-height: 1.25;
+  font-weight: 500;
+  opacity: 0.85;
+}
+
+/* The stepper steps jump to the panel they describe, so they behave like
+   buttons while keeping the same card look. */
+.workflow-item-button {
+  width: 100%;
+  font: inherit;
+  cursor: pointer;
+  text-align: center;
+}
+
+.workflow-item-button:hover {
+  border-color: #9eb2b7;
+}
+
 /* ============================================================
    INPUT BAR
+   The bar is the shared shell.css .modebar/.mode system. Only the
+   right-alignment of the disabled template button is local.
    ============================================================ */
-
-.results-input-bar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin: 0 10px 14px;
-  padding: 10px;
-  border: 1px solid #d5e0e6;
-  border-radius: 10px;
-  background: #ffffff;
-}
-
-.input-mode-label {
-  margin-left: 8px;
-  margin-right: 4px;
-  color: #173b52;
-  font-size: 16px;
-  font-weight: 700;
-}
-
-.input-mode {
-  min-height: 40px;
-  padding: 0 14px;
-  border: 1px solid #d5e0e6;
-  border-radius: 9px;
-  background: #ffffff;
-  color: #173b52;
-  cursor: pointer;
-  font-size: 14px;
-}
-
-.input-mode:hover {
-  background: #f3f8f9;
-}
-
-.input-mode.active {
-  background: #173f4a;
-  border-color: #173f4a;
-  color: #ffffff;
-}
 
 .method-template-button {
   margin-left: auto;
@@ -205,43 +203,9 @@
 
 /* ============================================================
    TEST CATALOG
+   Container and rows are the shared shell.css .catalog/.item classes.
+   Only the AGS tag shown inside a row is specific to this module.
    ============================================================ */
-
-.test-catalog {
-  overflow: hidden;
-  border: 1px solid #d5e0e6;
-  border-radius: 10px;
-  background: #ffffff;
-}
-
-.test-catalog-row {
-  display: flex;
-  width: 100%;
-  min-height: 48px;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 12px 0 21px;
-  border: 0;
-  border-bottom: 1px solid transparent;
-  background: #ffffff;
-  color: #173b52;
-  text-align: left;
-  cursor: pointer;
-  font-size: 15px;
-}
-
-.test-catalog-row:hover {
-  background: #f5f9fa;
-}
-
-.test-catalog-row.active {
-  margin: 10px;
-  width: calc(100% - 20px);
-  border-radius: 9px;
-  background: #e7f5f4;
-  color: #087f7b;
-  font-weight: 700;
-}
 
 .catalog-ags {
   font-size: 14px;
@@ -359,45 +323,20 @@
 
 /* ============================================================
    SUB TABS
+   Base styles come from shell.css (.subtabs / .subtab). Only the
+   vertical rhythm for this workbench is added here - no duplicated
+   colour, border, padding or font rules that would fight the shell.
    ============================================================ */
 
-.subtabs {
-  display: flex;
-  gap: 7px;
-  flex-wrap: wrap;
+.results-entry .subtabs {
   margin: 8px 0 15px;
-}
-
-.subtab {
-  min-height: 41px;
-  padding: 0 14px;
-  border: 1px solid #d3e0e6;
-  border-radius: 9px;
-  background: #ffffff;
-  color: #31556d;
-  cursor: pointer;
-  font-size: 14px;
-}
-
-.subtab:hover {
-  background: #f5fafb;
-}
-
-.subtab.active {
-  background: #e6f5f4;
-  border-color: #8dd6d2;
-  color: #087f7b;
-  font-weight: 700;
 }
 
 /* ============================================================
    TABLE
    ============================================================ */
 
-.table-wrapper {
-  width: 100%;
-  overflow-x: auto;
-}
+/* Table scroll uses the shared shell.css .table-scroll wrapper. */
 
 .results-table {
   width: 100%;
@@ -681,49 +620,6 @@
   color: #58728a;
 }
 
-.coming-soon {
-  padding: 35px;
-  border: 1px dashed #b9cbd4;
-  border-radius: 9px;
-  background: #f7fafb;
-  color: #607d94;
-  text-align: center;
-}
-
-/* ============================================================
-   STATUS
-   ============================================================ */
-
-.status-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
-}
-
-.status-box {
-  display: flex;
-  min-height: 80px;
-  flex-direction: column;
-  justify-content: center;
-  padding: 0 16px;
-  border: 1px solid #d9e3e8;
-  border-radius: 9px;
-  background: #f7fafb;
-}
-
-.status-title {
-  margin-bottom: 7px;
-  color: #6b8191;
-  font-size: 12px;
-  font-weight: 700;
-  text-transform: uppercase;
-}
-
-.status-box strong {
-  color: #173b52;
-  font-size: 14px;
-}
-
 /* ============================================================
    RESPONSIVE
    ============================================================ */
@@ -758,11 +654,6 @@
     grid-template-columns: 1fr;
   }
 
-  .test-catalog {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-  }
-
   .atterberg-bottom {
     grid-template-columns: 1fr;
   }
@@ -793,21 +684,8 @@
     grid-template-columns: repeat(2, 1fr);
   }
 
-  .test-catalog {
-    grid-template-columns: 1fr;
-  }
-
-  .results-input-bar {
-    margin-left: 8px;
-    margin-right: 8px;
-  }
-
   .method-template-button {
     margin-left: 0;
-  }
-
-  .status-grid {
-    grid-template-columns: 1fr;
   }
 
   .results-entry-title {
@@ -815,15 +693,7 @@
   }
 }
 /* ---- Results Entry additions (manual pipeline) ---- */
-.re-modes{display:flex;flex-wrap:wrap;gap:6px}
-.re-mode{padding:4px 10px;border-radius:999px;border:1px solid #cbd5d5;background:#fff;font-size:12px}
-.re-mode.active{background:#0f4c4c;color:#fff;border-color:#0f4c4c}
-.re-mode:disabled{opacity:.5;cursor:not-allowed}
 .re-subhead{margin:12px 0 6px;font-size:13px}
-.re-table-wrap{overflow-x:auto}
-.re-table{border-collapse:collapse;width:100%;font-size:12px}
-.re-table th,.re-table td{border:1px solid #dfe6e6;padding:3px 5px;text-align:left}
-.re-table input{width:100%;min-width:70px;box-sizing:border-box}
 .re-add{margin-top:8px}
 .re-muted{color:#5b6b6b;font-size:12px;margin:4px 0}
 .re-ok{color:#1b6e3c;font-size:12px}

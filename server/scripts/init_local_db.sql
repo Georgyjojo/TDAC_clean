@@ -1,4 +1,4 @@
--- TDAC_clean local-test database bootstrap.
+-- TDAC_clean local database bootstrap.
 --
 -- Creates the exact tables the application touches and nothing else:
 --   ags42: PROJ, LOCA, GEOL, CORE, ISPT  (column types follow the AGS 4.2
@@ -6,12 +6,12 @@
 --          TEXT, nDP -> NUMERIC, DT -> TIMESTAMP WITH TIME ZONE)
 --   tdac:  roles, users                  (auth contract of app/auth/*)
 --
--- Idempotent: safe to re-run. Intended for the local Termux Postgres
--- (host 127.0.0.1, trust auth); psql auto-reconnects per statement on
--- psql 18, so run it twice if the CREATE DATABASE line ever fails.
+-- Idempotent: safe to re-run. Runs against the single real database
+-- ags42_data (same one the app and the AGS projects use):
+--   psql -h 127.0.0.1 -U postgres -d ags42_data -f server/scripts/init_local_db.sql
+-- Existing tables are left untouched (CREATE TABLE IF NOT EXISTS).
 
-CREATE DATABASE tdacdb;
-\connect tdacdb
+\connect ags42_data
 
 CREATE SCHEMA IF NOT EXISTS "ags42";
 CREATE SCHEMA IF NOT EXISTS tdac;

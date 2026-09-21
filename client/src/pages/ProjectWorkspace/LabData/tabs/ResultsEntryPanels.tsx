@@ -104,9 +104,11 @@ const blank = (cols: string[]) => Object.fromEntries(cols.map((c) => [c, ""]));
 
 export const HAS_PANEL: TestKey[] = ["PSD", "PARTICLE_DENSITY", "SHRINKAGE_LIMIT", "TRIAXIAL_UU"];
 
-export function MethodPanel({ test, data, onChange }: {
+export function MethodPanel({ test, data, methodOptions, onChange }: {
   test: TestKey;
   data: MethodData;
+  /** Active method definitions for this test type, read from lab.method_definition. */
+  methodOptions: string[];
   onChange: (d: MethodData) => void;
 }) {
   const live = useMemo(() => evaluate(test, data), [test, data]);
@@ -124,13 +126,26 @@ export function MethodPanel({ test, data, onChange }: {
     <button type="button" className={tab === id ? "subtab active" : "subtab"} onClick={() => setTab(id)}>{label}</button>
   );
 
+  // The method profile field is fed by the real active method definitions for
+  // this test type. When none are registered it says so instead of offering a
+  // standard the database does not hold.
+  const methodField = (
+    <F label="Method profile">
+      <Sel
+        value={P.method}
+        options={methodOptions.length ? methodOptions : ["No active method for this test type"]}
+        onChange={(v) => setP("method", v)}
+      />
+    </F>
+  );
+
   if (test === "PSD") {
     return (
       <>
         <section className="results-card">
           <Header title="Grain size analysis" ags="GRAG + GRAT" />
           <div className="method-grid">
-            <F label="Method profile"><Sel value={P.method} options={["IS 2720 Part 4 - Sieve + hydrometer"]} onChange={(v) => setP("method", v)} /></F>
+            {methodField}
             <F label="Dry specimen mass (g)"><input value={P.dryMass} onChange={(e) => setP("dryMass", e.target.value)} /></F>
             <F label="Particle density (Mg/m3)"><input value={P.particleDensity} onChange={(e) => setP("particleDensity", e.target.value)} /></F>
             <F label="Pre-treatment"><Sel value={P.pretreatment} options={["Wet sieve and dispersant", "Dry sieve"]} onChange={(v) => setP("pretreatment", v)} /></F>
@@ -143,7 +158,7 @@ export function MethodPanel({ test, data, onChange }: {
           </div>
           {tab === "sieve" && (
             <>
-              <div className="table-wrapper">
+              <div className="table-scroll">
                 <table className="results-table">
                   <thead><tr>
                     <th>No.</th><th>Sieve (mm)</th><th>Tare (g)</th><th>Tare + retained (g)</th>
@@ -184,12 +199,12 @@ export function MethodPanel({ test, data, onChange }: {
         <section className="results-card">
           <Header title="Particle density and specific gravity" ags="LPDN" />
           <div className="method-grid">
-            <F label="Method profile"><Sel value={P.method} options={["IS 2720 Part 3 - Pycnometer"]} onChange={(v) => setP("method", v)} /></F>
-            <F label="Pycnometer"><Sel value={P.pycnometer} options={["PYK-04 · 50 ml", "PYK-05 · 50 ml", "PYK-06 · 100 ml"]} onChange={(v) => setP("pycnometer", v)} /></F>
+            {methodField}
+            <F label="Pycnometer (equipment code)"><input value={P.pycnometer} onChange={(e) => setP("pycnometer", e.target.value)} placeholder="e.g. the code from the equipment register" /></F>
             <F label="Calibration"><input value="Not linked (calibration register pending)" readOnly /></F>
             <F label="Material fraction"><input value={P.fraction} onChange={(e) => setP("fraction", e.target.value)} /></F>
           </div>
-          <div className="table-wrapper">
+          <div className="table-scroll">
             <table className="results-table">
               <thead><tr>
                 <th>Trial</th><th>M1 empty (g)</th><th>M2 + dry soil (g)</th><th>M3 + soil + water (g)</th><th>M4 + water (g)</th>
@@ -230,12 +245,12 @@ export function MethodPanel({ test, data, onChange }: {
       <section className="results-card">
         <Header title="Shrinkage limit" ags="LSLT" />
         <div className="method-grid">
-          <F label="Method profile"><Sel value={P.method} options={["IS 2720 Part 6 - Shrinkage factors"]} onChange={(v) => setP("method", v)} /></F>
+          {methodField}
           <F label="Initial water content (%)"><input value={P.initialWc} onChange={(e) => setP("initialWc", e.target.value)} /></F>
           <F label="Initial density (Mg/m3)"><input value={P.initialDensity} onChange={(e) => setP("initialDensity", e.target.value)} /></F>
           <F label="Specimen preparation"><input value={P.preparation} onChange={(e) => setP("preparation", e.target.value)} /></F>
         </div>
-        <div className="table-wrapper">
+        <div className="table-scroll">
           <table className="results-table">
             <thead><tr>
               <th>Trial</th><th>Wet mass (g)</th><th>Dry mass (g)</th><th>Wet volume (cm3)</th><th>Dry volume (cm3)</th>
@@ -263,12 +278,12 @@ export function MethodPanel({ test, data, onChange }: {
       <section className="results-card">
         <Header title="Unconsolidated undrained triaxial test" ags="TRIG + TRIT" />
         <div className="method-grid">
-          <F label="Method profile"><Sel value={P.method} options={["IS 2720 Part 11 - UU"]} onChange={(v) => setP("method", v)} /></F>
+          {methodField}
           <F label="Sample condition"><Sel value={P.condition} options={["Undisturbed", "Remoulded", "Compacted"]} onChange={(v) => setP("condition", v)} /></F>
-          <F label="Load frame"><Sel value={P.frame} options={["TRX-02 · Calibration valid"]} onChange={(v) => setP("frame", v)} /></F>
+          <F label="Load frame (equipment code)"><input value={P.frame} onChange={(e) => setP("frame", e.target.value)} placeholder="e.g. the code from the equipment register" /></F>
           <F label="Failure criterion"><Sel value={P.failureCriterion} options={["Peak deviator stress", "15% axial strain"]} onChange={(v) => setP("failureCriterion", v)} /></F>
         </div>
-        <div className="table-wrapper">
+        <div className="table-scroll">
           <table className="results-table">
             <thead><tr>
               <th>Specimen</th><th>Dia (mm)</th><th>Length (mm)</th><th>Cell pressure (kPa)</th><th>q at failure (kPa)</th>
@@ -367,7 +382,9 @@ export function PipelineCards({ test, evaluation, stale, notice }: {
             </div>
           ))}
       <p className="re-muted">
-        QA and release are not available: the backend has no submit/approval endpoint. Nothing on this page has been sent to the server.
+        Use “Submit for check” in the header to save this revision and move it
+        into the review queue. Checking and approval happen on the QA and
+        Approval tab.
       </p>
       {notice && <div className="re-notice">{notice}</div>}
     </section>

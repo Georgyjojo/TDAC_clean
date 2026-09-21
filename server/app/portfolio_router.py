@@ -1,12 +1,19 @@
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.schemas.lab_data import LabTestCreate
+from app.schemas.lab_data import (
+    LabTestCreate,
+    LabRevisionSave,
+    LabReviewAction,
+)
 from app.lab_data_service import (
     create_lab_test,
     get_project_lab_tests,
     get_approved_results,
     get_review_queue,
     get_active_methods,
+    get_lab_test,
+    save_lab_revision,
+    transition_lab_test,
 )
 from app.auth.dependencies import get_current_user
 from app.portfolio_service import (
@@ -457,6 +464,139 @@ async def project_lab_review_queue(
         "project_id": project_id,
         "queue": rows,
     }
+
+
+@router.get("/projects/{project_id}/lab/tests/{test_id}")
+async def project_lab_test(
+    project_id: str,
+    test_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    try:
+        test = await get_lab_test(project_id, test_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+    return {
+        "project_id": project_id,
+        "test": test,
+    }
+
+
+@router.put("/projects/{project_id}/lab/tests/{test_id}/revision")
+async def save_project_lab_revision(
+    project_id: str,
+    test_id: str,
+    payload: LabRevisionSave,
+    current_user: dict = Depends(get_current_user),
+):
+    try:
+        test = await save_lab_revision(
+            project_id=project_id,
+            test_id=test_id,
+            raw_input_snapshot=payload.raw_input_snapshot,
+            calculation_output_snapshot=payload.calculation_output_snapshot,
+            validation_snapshot=payload.validation_snapshot,
+            revision_reason=payload.revision_reason,
+            actor=current_user["username"],
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    return {
+        "message": "Revision saved",
+        "test": test,
+    }
+
+
+async def _apply_review_action(
+    project_id: str,
+    test_id: str,
+    action: str,
+    current_user: dict,
+    payload: LabReviewAction | None,
+):
+    try:
+        test = await transition_lab_test(
+            project_id=project_id,
+            test_id=test_id,
+            action=action,
+            actor=current_user["username"],
+            actor_role=current_user.get("role_name") or "lab",
+            reason=payload.reason if payload else None,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    return {
+        "message": f"Test {action} completed",
+        "test": test,
+    }
+
+
+@router.post("/projects/{project_id}/lab/tests/{test_id}/submit")
+async def submit_project_lab_test(
+    project_id: str,
+    test_id: str,
+    payload: LabReviewAction | None = None,
+    current_user: dict = Depends(get_current_user),
+):
+    return await _apply_review_action(
+        project_id, test_id, "submit", current_user, payload
+    )
+
+
+@router.post("/projects/{project_id}/lab/tests/{test_id}/check")
+async def check_project_lab_test(
+    project_id: str,
+    test_id: str,
+    payload: LabReviewAction | None = None,
+    current_user: dict = Depends(get_current_user),
+):
+    return await _apply_review_action(
+        project_id, test_id, "check", current_user, payload
+    )
+
+
+@router.post("/projects/{project_id}/lab/tests/{test_id}/approve")
+async def approve_project_lab_test(
+    project_id: str,
+    test_id: str,
+    payload: LabReviewAction | None = None,
+    current_user: dict = Depends(get_current_user),
+):
+    return await _apply_review_action(
+        project_id, test_id, "approve", current_user, payload
+    )
+
+
+@router.post("/projects/{project_id}/lab/tests/{test_id}/return")
+async def return_project_lab_test(
+    project_id: str,
+    test_id: str,
+    payload: LabReviewAction | None = None,
+    current_user: dict = Depends(get_current_user),
+):
+    return await _apply_review_action(
+        project_id, test_id, "return", current_user, payload
+    )
+
+
+@router.post("/projects/{project_id}/lab/tests/{test_id}/publish")
+async def publish_project_lab_test(
+    project_id: str,
+    test_id: str,
+    payload: LabReviewAction | None = None,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Release an APPROVED revision: writes the released values to the AGS
+    publication record and moves the test to PUBLISHED. Separate from approve
+    on purpose - approval is a decision, publish is the release.
+    """
+    return await _apply_review_action(
+        project_id, test_id, "publish", current_user, payload
+    )
 
 
 @router.get("/lab/methods")

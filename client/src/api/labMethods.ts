@@ -20,6 +20,8 @@ export interface LabMethod {
   calculation_package: string;
   calculation_package_version: string;
   ags_group: string[] | null;
+  /** Released output keys the method declares (lab.method_definition.result_schema). */
+  result_outputs: string[] | null;
 }
 
 export async function getLabMethods(): Promise<LabMethod[]> {

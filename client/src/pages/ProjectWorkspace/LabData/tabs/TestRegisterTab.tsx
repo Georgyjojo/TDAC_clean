@@ -4,8 +4,11 @@ import {
   getProjectSampleTests,
   createProjectLabTest,
   type ProjectSample,
-  
 } from "../../../../api/fieldData";
+import {
+  getLabMethods,
+  type LabMethod,
+} from "../../../../api/labMethods";
 
 interface TestRegisterTabProps {
   projectId: string;
@@ -27,13 +30,21 @@ export function TestRegisterTab({
   const [sampleTests, setSampleTests] = useState<any[]>([]);
   const [specimenRef, setSpecimenRef] = useState("SPEC-01");
   const [testType, setTestType] = useState("PSD");
-  const [methodDefinitionId] = useState(
-    "00000000-0000-0000-0000-000000000001"
-  );
+  const [methods, setMethods] = useState<LabMethod[]>([]);
+  // method_definition_id is required by POST /lab/tests and must match the
+  // test type, so it is read from the real active method list - never a
+  // hardcoded placeholder UUID.
+  const [methodDefinitionId, setMethodDefinitionId] = useState("");
   const [laboratory, setLaboratory] = useState("TDAC Laboratory");
   const [technician, setTechnician] = useState("");
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
+
+  useEffect(() => {
+    getLabMethods()
+      .then(setMethods)
+      .catch(() => setMethods([]));
+  }, []);
 
   useEffect(() => {
   async function loadSamples() {
@@ -62,6 +73,15 @@ export function TestRegisterTab({
   const locations = Array.from(
     new Set(samples.map((sample) => sample.loca_id))
   ).sort();
+
+  const methodsForType = methods.filter(
+    (method) => method.test_type === testType
+  );
+
+  // Falls back to the first active method for the chosen test type until the
+  // user explicitly picks one, so creation never sends a stale/blank id.
+  const effectiveMethodId =
+    methodDefinitionId || methodsForType[0]?.method_definition_id || "";
 
   const filteredSamples = samples.filter((sample) => {
     const matchesLocation =
@@ -132,6 +152,14 @@ const matchesStatus =
   async function handleCreateTest() {
     if (!selectedSample) return;
 
+    if (!effectiveMethodId) {
+        setSaveError(
+        "No active laboratory method is available for this test type. " +
+            "Add a method definition before registering the test."
+        );
+        return;
+    }
+
     try {
         setSaving(true);
         setSaveError("");
@@ -141,12 +169,16 @@ const matchesStatus =
         samp_id: selectedSample.sample_id,
         specimen_ref: specimenRef,
         test_type: testType,
-        method_definition_id: methodDefinitionId,
+        method_definition_id: effectiveMethodId,
         laboratory,
         technician: technician || undefined,
         });
 
         setSelectedSample(null);
+
+        // Reload so the newly registered test appears in the register.
+        const refreshed = await getProjectSampleTests(projectId);
+        setSampleTests(refreshed);
     } catch (err) {
         console.error(err);
 
@@ -294,7 +326,16 @@ const matchesStatus =
 
             <select
               value={testType}
-              onChange={(e) => setTestType(e.target.value)}
+              onChange={(e) => {
+                const nextType = e.target.value;
+                setTestType(nextType);
+                const firstMethod = methods.find(
+                  (method) => method.test_type === nextType
+                );
+                setMethodDefinitionId(
+                  firstMethod ? firstMethod.method_definition_id : ""
+                );
+              }}
             >
               <option value="PSD">
                 Particle Size Distribution
@@ -323,6 +364,41 @@ const matchesStatus =
 
             <div className="lab-test-form-help">
               Select the laboratory test type.
+            </div>
+          </div>
+
+          <div className="lab-test-form-field">
+            <label>
+              Method
+              <span className="lab-test-required">*</span>
+            </label>
+
+            <select
+              value={effectiveMethodId}
+              onChange={(e) => setMethodDefinitionId(e.target.value)}
+              disabled={methodsForType.length === 0}
+            >
+              {methodsForType.length === 0 ? (
+                <option value="">
+                  No active method for this test type
+                </option>
+              ) : (
+                methodsForType.map((method) => (
+                  <option
+                    key={method.method_definition_id}
+                    value={method.method_definition_id}
+                  >
+                    {method.method_code} · {method.method_name}
+                    {method.standard_reference
+                      ? ` (${method.standard_reference})`
+                      : ""}
+                  </option>
+                ))
+              )}
+            </select>
+
+            <div className="lab-test-form-help">
+              Active method definition that owns the calculation package.
             </div>
           </div>
 

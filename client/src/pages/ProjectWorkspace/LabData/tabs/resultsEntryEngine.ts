@@ -52,7 +52,9 @@ export function defaultMethodData(test: TestKey): MethodData {
     case "PSD":
       return {
         params: {
-          method: "IS 2720 Part 4 - Sieve + hydrometer",
+          // No seeded method text: the profile is chosen from the active
+          // method definitions read from lab.method_definition.
+          method: "",
           dryMass: "",
           particleDensity: "",
           pretreatment: "",
@@ -62,7 +64,7 @@ export function defaultMethodData(test: TestKey): MethodData {
     case "PARTICLE_DENSITY":
       return {
         params: {
-          method: "IS 2720 Part 3 - Pycnometer",
+          method: "",
           pycnometer: "",
           fraction: "",
         },
@@ -71,7 +73,7 @@ export function defaultMethodData(test: TestKey): MethodData {
     case "SHRINKAGE_LIMIT":
       return {
         params: {
-          method: "IS 2720 Part 6 - Shrinkage factors",
+          method: "",
           initialWc: "",
           initialDensity: "",
           preparation: "",
@@ -81,7 +83,7 @@ export function defaultMethodData(test: TestKey): MethodData {
     case "TRIAXIAL_UU":
       return {
         params: {
-          method: "IS 2720 Part 11 - UU",
+          method: "",
           condition: "",
           frame: "",
           failureCriterion: "Peak deviator stress",
@@ -160,14 +162,16 @@ export function evaluate(test: TestKey, d: MethodData): Evaluation {
     if (total > 0 && cum > total) err("Sum of retained masses exceeds dry specimen mass.");
     curve = pts;
     const at = (mm: number) => pts.find((p) => p.x === mm)?.y;
-    const pf = at(0.075) ?? at(0.063), p2 = at(2);
+    // Gravel/sand boundary is the 4.75 mm sieve (IS 2720 Part 4, and the
+    // mockup's own first sieve row), not the 2 mm fine-earth fraction.
+    const pf = at(0.075) ?? at(0.063), p2 = at(4.75);
     if (p2 !== undefined && pf !== undefined) {
       results.push(
         { label: "Gravel", value: fmt(100 - p2, 1), unit: "%" },
         { label: "Sand", value: fmt(p2 - pf, 1), unit: "%" },
         { label: "Fines", value: fmt(pf, 1), unit: "%" }
       );
-    } else if (pts.length) info("Gravel/sand/fines need the 2 mm and 0.075 (or 0.063) mm sieves.");
+    } else if (pts.length) info("Gravel/sand/fines need the 4.75 mm and 0.075 (or 0.063) mm sieves.");
     results.push({ label: "Silt", value: "—" }, { label: "Clay", value: "—" });
     const d10 = dAt(pts, 10), d30 = dAt(pts, 30), d60 = dAt(pts, 60);
     if (Number.isFinite(d10) && Number.isFinite(d60)) {
@@ -244,9 +248,10 @@ export function evaluate(test: TestKey, d: MethodData): Evaluation {
     if (!pl.length) err("At least one plastic-limit trial is required.");
     const PL = pl.length ? pl.reduce((a, b) => a + b, 0) / pl.length : NaN;
     const PI = LL - PL;
-    // Flow curve: real trial points plus the fitted least-squares line
-    // (x = blows, y = water content), so the chart draws the user's actual
-    // data instead of fixed sample points.
+    // Flow curve: real trial points plus the fitted least-squares line.
+    // The regression runs on x = log10(blows); the curve stores x back in
+    // blows (10^x) because the chart's x-axis is logarithmic, so the stored
+    // x values are the blows counts the user entered.
     if (pts.length >= 2) {
       const xs = pts.map((p) => p.x);
       const x0 = Math.min(...xs), x1 = Math.max(...xs);

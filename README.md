@@ -69,11 +69,11 @@ The connection lives in `server/.env` (see `server/env.sample` for the keys: DB_
 Local Termux quick setup (Postgres already installed via `pkg install postgresql`):
 
 ```bash
-psql -h 127.0.0.1 -U postgres -f server/scripts/init_local_db.sql   # creates the isolated tdacdb TEST database + all tables (idempotent)
+psql -h 127.0.0.1 -U postgres -d ags42_data -f server/scripts/init_local_db.sql   # ensures all tables exist in ags42_data (idempotent)
 cd server && python3 scripts/seed_admin.py                           # admin / admin@123
 ```
 
-Two databases, to be exact: the real development database is `ags42_data` (the Prerequisites line above — the same one the AGS projects read). `tdacdb` is the isolated scratch database created by `init_local_db.sql` for the `scripts/local_e2e*.sh` end-to-end tests — point `DB_NAME` at `tdacdb` only while running those, so test rows never land in `ags42_data`.
+One database: `ags42_data` is both the development database and the one the end-to-end scripts (`scripts/local_e2e*.sh`) run against. The lab tables they write (`lab.*`) start empty, so test rows are easy to spot and delete afterwards.
 
 ### Step 5 — Run the backend
 

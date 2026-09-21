@@ -2,11 +2,24 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useParams } from "react-router-dom";
 import "./ResultsEntryTab.css";
 import {
-  BACKEND_PENDING,
   getProjectSamples,
-  saveLocalDraft,
   type ProjectSample,
 } from "../../../../api/labResults";
+import {
+  getProjectLabTests,
+  getLabTest,
+  saveLabRevision,
+  reviewLabTest,
+  type LabReviewEvent,
+  type LabPublicationRecord,
+  type LabMethodPin,
+  type LabTestDetail,
+  type LabTestSummary,
+} from "../../../../api/lab";
+import {
+  getLabMethods,
+  type LabMethod,
+} from "../../../../api/labMethods";
 import {
   defaultMethodData,
   evaluate,
@@ -130,6 +143,97 @@ interface PlasticTrial {
 
 const INITIAL_PLASTIC_TRIALS: PlasticTrial[] = [];
 
+/** Label of a method definition exactly as the database holds it. */
+function methodLabelOf(method: {
+  method_code: string;
+  method_version: number;
+  standard_reference: string | null;
+  standard_edition: string | null;
+}): string {
+  return [
+    method.method_code,
+    method.standard_reference,
+    method.standard_edition,
+    `v${method.method_version}`,
+  ]
+    .filter((part) => part !== null && part !== undefined && part !== "")
+    .join(" · ");
+}
+
+/**
+ * Reading rows that carry every value their test type requires. Used by the
+ * workflow stepper so "Readings" only completes when real readings exist -
+ * nothing is assumed from the fact that a test row exists in the database.
+ */
+function countCompleteReadings(
+  test: TestType,
+  data: MethodData,
+  liquidTrials: LiquidTrial[],
+  plasticTrials: PlasticTrial[]
+): { complete: number; total: number } {
+  const filled = (values: (string | undefined)[]) =>
+    values.every((value) => value !== undefined && value.trim() !== "");
+
+  if (test === "ATTERBERG") {
+    const liquid = liquidTrials.filter((trial) =>
+      filled([trial.blows, trial.containerMass, trial.wetContainer, trial.dryContainer])
+    ).length;
+    const plastic = plasticTrials.filter((trial) =>
+      filled([trial.containerMass, trial.wetContainer, trial.dryContainer])
+    ).length;
+
+    return {
+      complete: liquid + plastic,
+      total: liquidTrials.length + plasticTrials.length,
+    };
+  }
+
+  const required: Record<TestType, string[]> = {
+    PSD: ["size", "tare", "tareRet"],
+    PARTICLE_DENSITY: ["m1", "m2", "m3", "m4", "temp"],
+    ATTERBERG: [],
+    SHRINKAGE_LIMIT: ["wetMass", "dryMass", "wetVol", "dryVol"],
+    TRIAXIAL_UU: ["dia", "length", "cell", "q", "strain"],
+    CONSOLIDATION: [],
+  };
+
+  const columns = required[test];
+
+  return {
+    complete: data.rows.filter((row) => filled(columns.map((c) => row[c]))).length,
+    total: data.rows.length,
+  };
+}
+
+// Maps a calculation result label to the released output key stored in the
+// revision's calculation_output_snapshot. The keys are the ones each method
+// definition declares in lab.method_definition.result_schema, so the release
+// step can prove which values it published.
+const RESULT_OUTPUT_KEYS: Record<string, string> = {
+  "Liquid limit": "liquid_limit",
+  "Plastic limit": "plastic_limit",
+  "Plasticity index": "plasticity_index",
+  "Flow index": "flow_index",
+  "Mean cu": "cu",
+  "Mean Gs": "specific_gravity",
+  "Particle density": "particle_density",
+  "Mean shrinkage limit": "shrinkage_limit",
+  "Mean shrinkage ratio": "shrinkage_ratio",
+};
+
+function outputSummary(results: Evaluation["results"]) {
+  const outputs: Record<string, number> = {};
+
+  for (const item of results) {
+    const key = RESULT_OUTPUT_KEYS[item.label];
+    if (!key) continue;
+    const value = Number(item.value);
+    if (Number.isFinite(value)) outputs[key] = value;
+  }
+
+  return outputs;
+}
+
 // Consolidation stages start empty. Stages are added by the user while
 // entering a real test - no seeded example stages.
 const CONSOLIDATION_STAGES: {
@@ -150,17 +254,19 @@ export function ResultsEntryTab() {
   const [identity, setIdentity] =
     useState<IdentityData>(INITIAL_IDENTITY);
 
+  // No method text is pre-filled: the method profile always comes from the
+  // pinned lab.method_definition row, never from a seeded string.
   const [method, setMethod] =
-    useState("IS 2720 Part 5 - Casagrande");
+    useState("");
 
   const [preparation, setPreparation] =
     useState("Wet preparation");
 
   const [sieveSize, setSieveSize] =
-    useState("0.425");
+    useState("");
 
   const [passingSieve, setPassingSieve] =
-    useState("98.0");
+    useState("");
 
   const [atterbergTab, setAtterbergTab] =
     useState<AtterbergTab>("liquid");
@@ -188,6 +294,18 @@ export function ResultsEntryTab() {
   const [revision, setRevision] = useState(1);
   const [audit, setAudit] = useState<string[]>([]);
 
+  // The laboratory test this workbench is editing. Its status is the source
+  // of truth for the workflow stepper - not a local editing flag.
+  const [labTests, setLabTests] = useState<LabTestSummary[]>([]);
+  const [selectedLabTestId, setSelectedLabTestId] = useState("");
+  const [testStatus, setTestStatus] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  // Active method definitions (lab.method_definition) and the full detail of
+  // the selected test: pinned method, review events and AGS publications.
+  const [methods, setMethods] = useState<LabMethod[]>([]);
+  const [dbDetail, setDbDetail] = useState<LabTestDetail | null>(null);
+
   useEffect(() => {
     if (!projectId) return;
     getProjectSamples(projectId)
@@ -195,12 +313,45 @@ export function ResultsEntryTab() {
       .catch(() => setSamples([]));
   }, [projectId]);
 
+  useEffect(() => {
+    if (!projectId) return;
+    getProjectLabTests(projectId)
+      .then(setLabTests)
+      .catch(() => setLabTests([]));
+  }, [projectId]);
+
+  // Method profiles are the real active method definitions, so the method
+  // fields can never show a standard the database does not know about.
+  useEffect(() => {
+    getLabMethods()
+      .then(setMethods)
+      .catch(() => setMethods([]));
+  }, []);
+
   const locationOptions = Array.from(
     new Set(samples.map((sample) => sample.loca_id))
   );
   const sampleOptions = samples.filter(
     (sample) => sample.loca_id === identity.locationId
   );
+
+  // Laboratories and technicians come from the laboratory tests this project
+  // actually has. Nothing is offered that the database does not hold.
+  const laboratoryOptions = Array.from(
+    new Set(
+      labTests
+        .map((test) => test.laboratory)
+        .filter((value): value is string => !!value && value.trim() !== "")
+    )
+  ).sort();
+
+  const technicianOptions = Array.from(
+    new Set(
+      labTests
+        .map((test) => test.technician)
+        .filter((value): value is string => !!value && value.trim() !== "")
+    )
+  ).sort();
 
   function chooseLocation(locationId: string) {
     const first = samples.find((sample) => sample.loca_id === locationId);
@@ -231,12 +382,14 @@ export function ResultsEntryTab() {
           params: {},
           rows: liquidTrials.map((trial) => ({
             blows: trial.blows,
+            container: trial.container,
             containerMass: trial.containerMass,
             wetContainer: trial.wetContainer,
             dryContainer: trial.dryContainer,
             use: String(trial.use),
           })),
           rows2: plasticTrials.map((trial) => ({
+            container: trial.container,
             containerMass: trial.containerMass,
             wetContainer: trial.wetContainer,
             dryContainer: trial.dryContainer,
@@ -252,16 +405,135 @@ export function ResultsEntryTab() {
   const stale = evaluation !== null && evaluation.snapshot !== snapshot;
   const calculated = evaluation !== null && !stale;
 
-  // The current workflow stage drives which bar items are highlighted.
-  // Before calculation the user is editing Identity/Method/Readings (steps
-  // 1-3 active). Once calculated, those are done and step 4 (Calculation)
-  // is active. Steps 5-6 need the submit/approve backend, so they stay
-  // upcoming and are never shown as done here.
-  const prepared = !calculated; // editing identity/method/readings
+  // ---------------------------------------------------------------------
+  // Workflow stepper state.
+  //
+  // Every one of the six steps is derived from something that really exists:
+  //   Identity    - the identity fields the user has actually entered
+  //   Method      - the method definition pinned on the registered test
+  //   Readings    - reading rows that carry all their required values
+  //   Calculation - the stored lab.test_revision of the current revision
+  //   QA          - the real lab.test.status (SUBMITTED/CHECKED/APPROVED)
+  //   Release     - the AGS publication records of this revision
+  //
+  // No step is pre-lit. With no test selected, or with empty identity or
+  // readings, those steps stay pending, and the first unfinished step is the
+  // only active one.
+  // ---------------------------------------------------------------------
+  const workflowStatus = testStatus ?? "";
+  const hasTest = selectedLabTestId !== "";
 
-  const currentTest = TESTS.find(
-    (test) => test.id === selectedTest
+  const identityValues = [
+    identity.locationId,
+    identity.sampleId,
+    identity.specimenReference,
+    identity.laboratory,
+    identity.testDate,
+  ];
+  const identityFilled = identityValues.filter(
+    (value) => value.trim() !== ""
+  ).length;
+  const identityDone = identityFilled === identityValues.length;
+
+  const pinnedMethod: LabMethodPin | null = dbDetail?.method ?? null;
+  const methodDone = pinnedMethod !== null;
+
+  const readings = countCompleteReadings(
+    selectedTest,
+    currentData,
+    liquidTrials,
+    plasticTrials
   );
+  const readingsDone = readings.complete > 0;
+
+  const reviewEvents: LabReviewEvent[] = dbDetail?.review_events ?? [];
+  const publication: LabPublicationRecord[] = dbDetail?.publication ?? [];
+
+  const revisionStored = dbDetail?.revision !== null && dbDetail?.revision !== undefined;
+  const calculationStored =
+    revisionStored && dbDetail?.revision?.calculation_output_snapshot != null;
+  const calcDone = hasTest && calculationStored;
+  const qaActive = hasTest && ["SUBMITTED", "CHECKED"].includes(workflowStatus);
+  const qaDone =
+    hasTest && ["APPROVED", "PUBLISHED"].includes(workflowStatus);
+  const releaseActive = hasTest && workflowStatus === "APPROVED";
+  const releaseDone = hasTest && workflowStatus === "PUBLISHED";
+
+  // Method profiles available for the test type of the current workbench.
+  const methodOptions = methods
+    .filter((entry) => entry.test_type === selectedTest)
+    .map(methodLabelOf);
+
+  const workflowSteps: {
+    number: string;
+    label: string;
+    done: boolean;
+    caption: string;
+    hint: string;
+  }[] = [
+    {
+      number: "1",
+      label: "Identity",
+      done: identityDone,
+      caption: `${identityFilled}/${identityValues.length} identity fields`,
+      hint: `Common test identity: project, location, sample and specimen. ${identityFilled} of ${identityValues.length} fields are entered.`,
+    },
+    {
+      number: "2",
+      label: "Method",
+      done: methodDone,
+      caption: pinnedMethod
+        ? methodLabelOf(pinnedMethod)
+        : "No method pinned on a test",
+      hint: pinnedMethod
+        ? `Pinned method: ${pinnedMethod.method_name} (${pinnedMethod.calculation_package} ${pinnedMethod.calculation_package_version}).`
+        : "Select a registered laboratory test: its method definition is pinned when the test is registered.",
+    },
+    {
+      number: "3",
+      label: "Readings",
+      done: readingsDone,
+      caption: readings.total
+        ? `${readings.complete}/${readings.total} row(s) complete`
+        : "No readings entered",
+      hint: "Test-specific raw readings stored in this revision. A row counts once every required value is entered.",
+    },
+    {
+      number: "4",
+      label: "Calculation",
+      done: calcDone,
+      caption: revisionStored
+        ? `Revision ${dbDetail?.revision?.revision_no} stored`
+        : calculated
+        ? "Calculated locally, not stored"
+        : "Not calculated",
+      hint: "Recalculate from the entered readings, then Save draft to store the revision in the database.",
+    },
+    {
+      number: "5",
+      label: "QA",
+      done: qaDone,
+      caption: qaDone
+        ? `Approved (${workflowStatus})`
+        : qaActive
+        ? `In review (${workflowStatus})`
+        : "Awaiting submission",
+      hint: "Independent check and approval happen on the QA and Approval tab.",
+    },
+    {
+      number: "6",
+      label: "Release",
+      done: releaseDone,
+      caption: releaseDone
+        ? `${publication.length} AGS publication record(s)`
+        : releaseActive
+        ? "Approved, not released"
+        : "Awaiting approval",
+      hint: "Publish writes the approved values to the AGS publication record; only then is the revision PUBLISHED.",
+    },
+  ];
+
+  const activeStepIndex = workflowSteps.findIndex((step) => !step.done);
 
   function updateIdentity(
     field: keyof IdentityData,
@@ -275,14 +547,9 @@ export function ResultsEntryTab() {
 
   function handleTestChange(test: TestType) {
     setSelectedTest(test);
-
-    if (test === "ATTERBERG") {
-      setMethod("IS 2720 Part 5 - Casagrande");
-    } else if (test === "CONSOLIDATION") {
-      setMethod("IS 2720 Part 15 - Oedometer");
-    } else {
-      setMethod("");
-    }
+    // The method profile belongs to the registered test, so switching the
+    // workbench test type clears the field instead of inventing a standard.
+    setMethod("");
   }
 
   function updateLiquidTrial(
@@ -319,6 +586,54 @@ export function ResultsEntryTab() {
     );
   }
 
+  // Trials are added and removed by the user against a real test. Nothing
+  // is seeded, so the flow curve only ever plots entered readings.
+  function addLiquidTrial() {
+    setLiquidTrials((previous) => [
+      ...previous,
+      {
+        trial: previous.length + 1,
+        blows: "",
+        container: `LL-${previous.length + 1}`,
+        containerMass: "",
+        wetContainer: "",
+        dryContainer: "",
+        waterContent: "",
+        use: true,
+      },
+    ]);
+  }
+
+  function removeLiquidTrial(trialNumber: number) {
+    setLiquidTrials((previous) =>
+      previous
+        .filter((trial) => trial.trial !== trialNumber)
+        .map((trial, index) => ({ ...trial, trial: index + 1 }))
+    );
+  }
+
+  function addPlasticTrial() {
+    setPlasticTrials((previous) => [
+      ...previous,
+      {
+        trial: previous.length + 1,
+        container: `PL-${previous.length + 1}`,
+        containerMass: "",
+        wetContainer: "",
+        dryContainer: "",
+        waterContent: "",
+      },
+    ]);
+  }
+
+  function removePlasticTrial(trialNumber: number) {
+    setPlasticTrials((previous) =>
+      previous
+        .filter((trial) => trial.trial !== trialNumber)
+        .map((trial, index) => ({ ...trial, trial: index + 1 }))
+    );
+  }
+
   function runEvaluation() {
     const value = evaluate(selectedTest, currentData);
     setEvaluation({ snapshot, value });
@@ -332,25 +647,188 @@ export function ResultsEntryTab() {
     ]);
   }
 
-  function handleSaveDraft() {
+  // The stepper is a jump-to-section control: each step scrolls the workbench
+  // to the panel it refers to. QA/Release live on the QA and Approval tab, so
+  // those steps explain where the action happens.
+  function goToStep(step: number) {
+    if (step === 5 || step === 6) {
+      setNotice(
+        step === 5
+          ? "Independent checking happens on the QA and Approval tab: Submit for check records SUBMITTED, Mark checked records CHECKED, Approve records APPROVED."
+          : "Release is a separate action: Publish writes the approved values to the AGS publication record and only then does the revision become PUBLISHED."
+      );
+      return;
+    }
+
+    const target =
+      step <= 2
+        ? "re-section-identity"
+        : step === 3
+        ? "re-section-readings"
+        : "re-section-validation";
+
+    document
+      .getElementById(target)
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  // Restore the workbench from a stored raw-input snapshot.
+  function applyRawSnapshot(
+    raw: Record<string, unknown> | null | undefined,
+    testType: string
+  ) {
+    if (!raw) return;
+
+    const snapshot = raw as Record<string, any>;
+
+    if (snapshot.identity) {
+      setIdentity((previous) => ({ ...previous, ...snapshot.identity }));
+    }
+    if (typeof snapshot.method === "string") setMethod(snapshot.method);
+    if (typeof snapshot.preparation === "string")
+      setPreparation(snapshot.preparation);
+    if (typeof snapshot.sieveSize === "string")
+      setSieveSize(snapshot.sieveSize);
+    if (typeof snapshot.passingSieve === "string")
+      setPassingSieve(snapshot.passingSieve);
+
+    const data = snapshot.data as MethodData | undefined;
+    if (!data) return;
+
+    if (testType === "ATTERBERG") {
+      setLiquidTrials(
+        (data.rows ?? []).map((row, index) => ({
+          trial: index + 1,
+          blows: String(row.blows ?? ""),
+          container: String(row.container ?? ""),
+          containerMass: String(row.containerMass ?? ""),
+          wetContainer: String(row.wetContainer ?? ""),
+          dryContainer: String(row.dryContainer ?? ""),
+          waterContent: "",
+          use: row.use !== "false",
+        }))
+      );
+      setPlasticTrials(
+        (data.rows2 ?? []).map((row, index) => ({
+          trial: index + 1,
+          container: String(row.container ?? ""),
+          containerMass: String(row.containerMass ?? ""),
+          wetContainer: String(row.wetContainer ?? ""),
+          dryContainer: String(row.dryContainer ?? ""),
+          waterContent: "",
+        }))
+      );
+    } else {
+      setMethodData((previous) => ({
+        ...previous,
+        [testType as TestType]: data,
+      }));
+    }
+  }
+
+  async function chooseLabTest(testId: string) {
+    setSelectedLabTestId(testId);
+    setNotice("");
+
+    if (!testId || !projectId) {
+      setTestStatus(null);
+      setDbDetail(null);
+      return;
+    }
+
+    try {
+      setSaving(true);
+      const detail = await getLabTest(projectId, testId);
+      const summary = labTests.find((test) => test.test_id === testId);
+
+      // Identity and method now come from the registered test row, not from
+      // placeholder values.
+      setSelectedTest(detail.test_type as TestType);
+      setTestStatus(detail.status);
+      setRevision(detail.current_revision);
+      setDbDetail(detail);
+      setIdentity((previous) => ({
+        ...previous,
+        locationId: detail.loca_id,
+        sampleId: detail.sample_id,
+        specimenReference: detail.spec_ref ?? "",
+        laboratory: summary?.laboratory ?? previous.laboratory,
+        technician: summary?.technician ?? previous.technician,
+        testDate: summary?.created_at
+          ? summary.created_at.slice(0, 10)
+          : previous.testDate,
+      }));
+      setMethod(detail.method ? methodLabelOf(detail.method) : "");
+      applyRawSnapshot(detail.revision?.raw_input_snapshot, detail.test_type);
+      setNotice(
+        `Loaded ${detail.test_id.slice(0, 8)} · ${detail.status} · revision ${detail.current_revision}.`
+      );
+    } catch (err) {
+      setNotice(
+        err instanceof Error ? err.message : "Failed to load the test."
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function buildRevisionPayload(value: Evaluation) {
+    return {
+      raw_input_snapshot: {
+        identity,
+        method,
+        preparation,
+        sieveSize,
+        passingSieve,
+        data: currentData,
+      },
+      calculation_output_snapshot: {
+        outputs: outputSummary(value.results),
+        results: value.results,
+        curve: value.curve ?? null,
+        perRow: value.perRow ?? null,
+        ags: value.ags ?? null,
+      },
+      validation_snapshot: {
+        issues: value.issues,
+        errors: value.issues.filter((issue) => issue.level === "error").length,
+        warnings: value.issues.filter((issue) => issue.level === "warning")
+          .length,
+      },
+      revision_reason: "Calculated draft",
+    };
+  }
+
+  async function handleSaveDraft() {
     if (!projectId) {
       setNotice("No project in context: draft not saved.");
       return;
     }
+    if (!selectedLabTestId) {
+      setNotice("Select a registered laboratory test before saving.");
+      return;
+    }
+
+    const value = evaluation && !stale ? evaluation.value : runEvaluation();
+
     try {
-      saveLocalDraft(
+      setSaving(true);
+      const saved = await saveLabRevision(
         projectId,
-        selectedTest,
-        { identity, method, preparation, sieveSize, passingSieve, data: currentData },
-        revision
+        selectedLabTestId,
+        buildRevisionPayload(value)
       );
+      setTestStatus(saved.status);
+      setRevision(saved.current_revision);
+      setDbDetail(saved);
       setNotice(
-        "Draft saved in THIS BROWSER only. It was not saved to the server " +
-          "(no results endpoint exists yet)."
+        `Draft saved to the server · status ${saved.status} · revision ${saved.current_revision}.`
       );
-      logAudit("draft saved locally (browser)");
-    } catch {
-      setNotice("Draft could not be saved (browser storage unavailable).");
+      logAudit("draft saved to server");
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : "Draft could not be saved.");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -365,15 +843,42 @@ export function ResultsEntryTab() {
     logAudit("calculated/validated");
   }
 
-  function handleSubmit() {
+  async function handleSubmit() {
+    if (!projectId || !selectedLabTestId) {
+      setNotice("Select a registered laboratory test before submitting.");
+      return;
+    }
+
     const value = runEvaluation();
     const errors = value.issues.filter((issue) => issue.level === "error").length;
-    setNotice(
-      errors
-        ? `Cannot submit: ${errors} blocking error(s) — see Validation.`
-        : "Validation passed, but NOT submitted: the backend has no submit-for-check endpoint yet. Pending: " +
-            BACKEND_PENDING.join("; ") + "."
-    );
+    if (errors) {
+      setNotice(`Cannot submit: ${errors} blocking error(s) — see Validation.`);
+      return;
+    }
+
+    try {
+      setSaving(true);
+      // Persist the current readings, then advance the real status.
+      await saveLabRevision(
+        projectId,
+        selectedLabTestId,
+        buildRevisionPayload(value)
+      );
+      const submitted = await reviewLabTest(
+        projectId,
+        selectedLabTestId,
+        "submit"
+      );
+      setTestStatus(submitted.status);
+      setRevision(submitted.current_revision);
+      setDbDetail(submitted);
+      setNotice("Submitted for independent checking.");
+      logAudit("submitted for check");
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : "Submit failed.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -409,13 +914,15 @@ export function ResultsEntryTab() {
           <button
             type="button"
             onClick={handleSaveDraft}
+            disabled={saving}
           >
-            Save draft
+            {saving ? "Saving…" : "Save draft"}
           </button>
 
           <button
             type="button"
             onClick={handleCalculate}
+            disabled={saving}
           >
             Calculate and validate
           </button>
@@ -424,6 +931,7 @@ export function ResultsEntryTab() {
             type="button"
             className="primary-action"
             onClick={handleSubmit}
+            disabled={saving}
           >
             Submit for check
           </button>
@@ -438,45 +946,23 @@ export function ResultsEntryTab() {
 
       <div className="results-workflow">
 
-        {/* Identity / Method / Readings: active while editing */}
-        <WorkflowItem
-          number="1"
-          label="Identity"
-          active={prepared}
-          done={calculated}
-        />
-
-        <WorkflowItem
-          number="2"
-          label="Method"
-          active={prepared}
-          done={calculated}
-        />
-
-        <WorkflowItem
-          number="3"
-          label="Readings"
-          active={prepared}
-          done={calculated}
-        />
-
-        {/* Calculation: active once calculated */}
-        <WorkflowItem
-          number="4"
-          label="Calculation"
-          active={calculated}
-        />
-
-        {/* QA / Release: downstream, need submit/approve backend */}
-        <WorkflowItem
-          number="5"
-          label="QA"
-        />
-
-        <WorkflowItem
-          number="6"
-          label="Release"
-        />
+        {/* One card per controlled stage. Each card is fed by the workflowSteps
+            state above: done from real data/database state, active for the one
+            stage that is currently being worked on, pending for the stages that
+            are not reached yet. */}
+        {workflowSteps.map((step, index) => (
+          <WorkflowItem
+            key={step.number}
+            number={step.number}
+            label={step.label}
+            active={index === activeStepIndex}
+            done={step.done}
+            pending={index > activeStepIndex && activeStepIndex !== -1}
+            caption={step.caption}
+            hint={step.hint}
+            onClick={() => goToStep(Number(step.number))}
+          />
+        ))}
 
       </div>
 
@@ -533,7 +1019,7 @@ export function ResultsEntryTab() {
               COMMON IDENTITY
               ================================================= */}
 
-          <section className="results-card">
+          <section className="results-card" id="re-section-identity">
 
             <div className="results-card-header">
 
@@ -544,12 +1030,34 @@ export function ResultsEntryTab() {
               </div>
 
               <div className="revision-badge">
-                Draft · Revision {revision}
+                {hasTest ? `${workflowStatus} · ` : ""}Revision {revision}
               </div>
 
             </div>
 
             <div className="identity-grid">
+
+              <Field label="Laboratory test">
+
+                <select
+                  value={selectedLabTestId}
+                  onChange={(event) =>
+                    chooseLabTest(event.target.value)
+                  }
+                >
+                  <option value="">
+                    Select a registered test…
+                  </option>
+
+                  {labTests.map((test) => (
+                    <option key={test.test_id} value={test.test_id}>
+                      {test.loca_id} · {test.samp_id} · {test.spec_ref ?? "—"} ·{" "}
+                      {test.test_type} · {test.status}
+                    </option>
+                  ))}
+                </select>
+
+              </Field>
 
               <Field label="Location ID">
 
@@ -559,12 +1067,15 @@ export function ResultsEntryTab() {
                     chooseLocation(event.target.value)
                   }
                 >
-                  {(locationOptions.length
-                    ? locationOptions
-                    : ["BH-07", "BH-01", "BH-02", "BH-03"]
-                  ).map((id) => (
-                    <option key={id}>{id}</option>
-                  ))}
+                  {locationOptions.length ? (
+                    locationOptions.map((id) => (
+                      <option key={id}>{id}</option>
+                    ))
+                  ) : (
+                    <option value="">
+                      No locations for this project
+                    </option>
+                  )}
                 </select>
 
               </Field>
@@ -577,12 +1088,17 @@ export function ResultsEntryTab() {
                     chooseSample(event.target.value)
                   }
                 >
-                  {(locationOptions.length
-                    ? sampleOptions.map((sample) => sample.sample_id)
-                    : ["BH07-UD-0800", "BH07-UD-0600"]
-                  ).map((id) => (
-                    <option key={id}>{id}</option>
-                  ))}
+                  {sampleOptions.length ? (
+                    sampleOptions.map((sample) => (
+                      <option key={sample.sample_id}>
+                        {sample.sample_id}
+                      </option>
+                    ))
+                  ) : (
+                    <option value="">
+                      No samples for this location
+                    </option>
+                  )}
                 </select>
 
               </Field>
@@ -641,13 +1157,20 @@ export function ResultsEntryTab() {
                   }
                 >
 
-                  <option>
-                    TDAC Central Laboratory
-                  </option>
+                  {/* Laboratories recorded on this project's laboratory tests.
+                      No placeholder laboratory is offered: with none recorded
+                      the field simply has nothing to choose from. */}
+                  {laboratoryOptions.length === 0 && (
+                    <option value="">
+                      No laboratory recorded for this project
+                    </option>
+                  )}
 
-                  <option>
-                    External Laboratory
-                  </option>
+                  {laboratoryOptions.map((laboratory) => (
+                    <option key={laboratory} value={laboratory}>
+                      {laboratory}
+                    </option>
+                  ))}
 
                 </select>
 
@@ -665,13 +1188,18 @@ export function ResultsEntryTab() {
                   }
                 >
 
-                  <option>
-                    Laboratory Technician
-                  </option>
+                  {/* Technicians recorded on this project's laboratory tests. */}
+                  {technicianOptions.length === 0 && (
+                    <option value="">
+                      No technician recorded for this project
+                    </option>
+                  )}
 
-                  <option>
-                    Senior Laboratory Technician
-                  </option>
+                  {technicianOptions.map((technician) => (
+                    <option key={technician} value={technician}>
+                      {technician}
+                    </option>
+                  ))}
 
                 </select>
 
@@ -700,10 +1228,13 @@ export function ResultsEntryTab() {
               TEST SPECIFIC
               ================================================= */}
 
+          <div id="re-section-readings" />
+
           {selectedTest === "ATTERBERG" && (
 
             <AtterbergSection
               method={method}
+              methodOptions={methodOptions}
               preparation={preparation}
               sieveSize={sieveSize}
               passingSieve={passingSieve}
@@ -717,6 +1248,10 @@ export function ResultsEntryTab() {
               plasticTrials={plasticTrials}
               updateLiquidTrial={updateLiquidTrial}
               updatePlasticTrial={updatePlasticTrial}
+              addLiquidTrial={addLiquidTrial}
+              removeLiquidTrial={removeLiquidTrial}
+              addPlasticTrial={addPlasticTrial}
+              removePlasticTrial={removePlasticTrial}
               evaluation={
                 selectedTest === "ATTERBERG"
                   ? evaluation?.value ?? null
@@ -730,6 +1265,7 @@ export function ResultsEntryTab() {
 
             <ConsolidationSection
               method={method}
+              methodOptions={methodOptions}
               setMethod={setMethod}
               consolidationTab={consolidationTab}
               setConsolidationTab={
@@ -743,6 +1279,7 @@ export function ResultsEntryTab() {
               <MethodPanel
                 test={selectedTest}
                 data={currentData}
+                methodOptions={methodOptions}
                 onChange={(next) =>
                   setMethodData((previous) => ({
                     ...previous,
@@ -752,12 +1289,103 @@ export function ResultsEntryTab() {
               />
             )}
 
+          <div id="re-section-validation" />
+
           <PipelineCards
             test={selectedTest}
             evaluation={evaluation ? evaluation.value : null}
             stale={stale}
             notice={notice}
           />
+
+          {/* Real review history from lab.review_event for the selected test,
+              plus the AGS publication records written by the release step. */}
+          {hasTest && (
+            <section className="results-card">
+              <div className="results-card-header">
+                <h2>Review events and publication</h2>
+                <span className="ags-label">
+                  AGS&nbsp;&nbsp;
+                  {(dbDetail?.ags_groups ?? []).join(" + ") || "not mapped"}
+                </span>
+              </div>
+
+              {reviewEvents.length === 0 ? (
+                <p className="re-muted">
+                  No review event recorded for this test yet.
+                </p>
+              ) : (
+                <div className="table-scroll">
+                  <table className="results-table">
+                    <thead>
+                      <tr>
+                        <th>Event</th>
+                        <th>Transition</th>
+                        <th>Actor</th>
+                        <th>Role</th>
+                        <th>Reason</th>
+                        <th>When</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {reviewEvents.map((event, index) => (
+                        <tr key={`${event.event_type}-${index}`}>
+                          <td>{event.event_type}</td>
+                          <td>
+                            {event.from_status ?? "—"} → {event.to_status}
+                          </td>
+                          <td>{event.actor}</td>
+                          <td>{event.actor_role}</td>
+                          <td>{event.reason ?? "—"}</td>
+                          <td>{new Date(event.event_at).toLocaleString()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {publication.length === 0 ? (
+                <p className="re-muted">
+                  Not published. Release writes one AGS publication record per
+                  AGS group of the pinned method after approval.
+                </p>
+              ) : (
+                <div className="table-scroll">
+                  <table className="results-table">
+                    <thead>
+                      <tr>
+                        <th>AGS group</th>
+                        <th>Rows</th>
+                        <th>Record hash</th>
+                        <th>Status</th>
+                        <th>Published by</th>
+                        <th>Published at</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {publication.map((record) => (
+                        <tr key={record.ags_group}>
+                          <td>{record.ags_group}</td>
+                          <td>{record.projected_row_count}</td>
+                          <td className="re-mono">
+                            {record.projected_row_hash.slice(0, 16)}…
+                          </td>
+                          <td>{record.projection_status}</td>
+                          <td>{record.projected_by ?? "—"}</td>
+                          <td>
+                            {record.projected_at
+                              ? new Date(record.projected_at).toLocaleString()
+                              : "—"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+          )}
 
           {audit.length > 0 && (
             <section className="results-card">
@@ -784,6 +1412,8 @@ export function ResultsEntryTab() {
 
 interface AtterbergProps {
   method: string;
+  /** Real active method profiles for this test type (lab.method_definition). */
+  methodOptions: string[];
   preparation: string;
   sieveSize: string;
   passingSieve: string;
@@ -810,6 +1440,11 @@ interface AtterbergProps {
     value: string
   ) => void;
 
+  addLiquidTrial: () => void;
+  removeLiquidTrial: (trial: number) => void;
+  addPlasticTrial: () => void;
+  removePlasticTrial: (trial: number) => void;
+
   // Live calculation result, so the reported values and the flow curve
   // reflect the trials the user actually entered. Null before calculate.
   evaluation: Evaluation | null;
@@ -817,6 +1452,7 @@ interface AtterbergProps {
 
 function AtterbergSection({
   method,
+  methodOptions,
   preparation,
   sieveSize,
   passingSieve,
@@ -830,6 +1466,10 @@ function AtterbergSection({
   plasticTrials,
   updateLiquidTrial,
   updatePlasticTrial,
+  addLiquidTrial,
+  removeLiquidTrial,
+  addPlasticTrial,
+  removePlasticTrial,
   evaluation,
 }: AtterbergProps) {
 
@@ -859,13 +1499,18 @@ function AtterbergSection({
             }
           >
 
-            <option>
-              IS 2720 Part 5 - Casagrande
-            </option>
+            {/* Active method definitions for Atterberg from the database. */}
+            {methodOptions.length === 0 && (
+              <option value="">
+                No active method for this test type
+              </option>
+            )}
 
-            <option>
-              BS 1377 Part 2
-            </option>
+            {methodOptions.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
 
           </select>
 
@@ -981,6 +1626,8 @@ function AtterbergSection({
         <LiquidLimitTable
           trials={liquidTrials}
           updateTrial={updateLiquidTrial}
+          addTrial={addLiquidTrial}
+          removeTrial={removeLiquidTrial}
         />
 
       )}
@@ -990,6 +1637,8 @@ function AtterbergSection({
         <PlasticLimitTable
           trials={plasticTrials}
           updateTrial={updatePlasticTrial}
+          addTrial={addPlasticTrial}
+          removeTrial={removePlasticTrial}
         />
 
       )}
@@ -1024,9 +1673,35 @@ function AtterbergSection({
    LIQUID LIMIT
    ============================================================ */
 
+/** Live water content from the three weighed masses (same formula as the
+ *  calculation engine), or an em-dash while a value is missing/invalid. */
+function waterContentOf(
+  containerMass: string,
+  wetContainer: string,
+  dryContainer: string
+): string {
+  if (
+    containerMass.trim() === "" ||
+    wetContainer.trim() === "" ||
+    dryContainer.trim() === ""
+  ) {
+    return "—";
+  }
+
+  const c = Number(containerMass);
+  const w = Number(wetContainer);
+  const d = Number(dryContainer);
+
+  if (!(d > c) || !(w >= d)) return "—";
+
+  return (((w - d) / (d - c)) * 100).toFixed(1);
+}
+
 function LiquidLimitTable({
   trials,
   updateTrial,
+  addTrial,
+  removeTrial,
 }: {
   trials: LiquidTrial[];
 
@@ -1035,10 +1710,13 @@ function LiquidLimitTable({
     field: keyof LiquidTrial,
     value: string | boolean
   ) => void;
+
+  addTrial: () => void;
+  removeTrial: (trial: number) => void;
 }) {
 
   return (
-    <div className="table-wrapper">
+    <div className="table-scroll">
 
       <table className="results-table">
 
@@ -1053,11 +1731,21 @@ function LiquidLimitTable({
             <th>Dry + container (g)</th>
             <th>Water content (%)</th>
             <th>Use</th>
+            <th />
           </tr>
 
         </thead>
 
         <tbody>
+
+          {trials.length === 0 && (
+            <tr>
+              <td colSpan={9} className="re-muted">
+                No liquid-limit trials yet. Add at least three trials for a
+                flow curve.
+              </td>
+            </tr>
+          )}
 
           {trials.map((trial) => (
 
@@ -1083,7 +1771,18 @@ function LiquidLimitTable({
               </td>
 
               <td className="container-cell">
-                {trial.container}
+
+                <input
+                  value={trial.container}
+                  onChange={(event) =>
+                    updateTrial(
+                      trial.trial,
+                      "container",
+                      event.target.value
+                    )
+                  }
+                />
+
               </td>
 
               <td>
@@ -1132,7 +1831,11 @@ function LiquidLimitTable({
               </td>
 
               <td className="calculated-cell">
-                {trial.waterContent}
+                {waterContentOf(
+                  trial.containerMass,
+                  trial.wetContainer,
+                  trial.dryContainer
+                )}
               </td>
 
               <td>
@@ -1157,6 +1860,19 @@ function LiquidLimitTable({
 
               </td>
 
+              <td>
+
+                <button
+                  type="button"
+                  className="use-button"
+                  title="Remove trial"
+                  onClick={() => removeTrial(trial.trial)}
+                >
+                  ×
+                </button>
+
+              </td>
+
             </tr>
 
           ))}
@@ -1164,6 +1880,10 @@ function LiquidLimitTable({
         </tbody>
 
       </table>
+
+      <button type="button" className="re-add" onClick={addTrial}>
+        + Add liquid trial
+      </button>
 
     </div>
   );
@@ -1176,6 +1896,8 @@ function LiquidLimitTable({
 function PlasticLimitTable({
   trials,
   updateTrial,
+  addTrial,
+  removeTrial,
 }: {
   trials: PlasticTrial[];
 
@@ -1184,10 +1906,13 @@ function PlasticLimitTable({
     field: keyof PlasticTrial,
     value: string
   ) => void;
+
+  addTrial: () => void;
+  removeTrial: (trial: number) => void;
 }) {
 
   return (
-    <div className="table-wrapper">
+    <div className="table-scroll">
 
       <table className="results-table">
 
@@ -1200,11 +1925,20 @@ function PlasticLimitTable({
             <th>Wet + container (g)</th>
             <th>Dry + container (g)</th>
             <th>Water content (%)</th>
+            <th />
           </tr>
 
         </thead>
 
         <tbody>
+
+          {trials.length === 0 && (
+            <tr>
+              <td colSpan={7} className="re-muted">
+                No plastic-limit trials yet. Add at least one trial.
+              </td>
+            </tr>
+          )}
 
           {trials.map((trial) => (
 
@@ -1215,7 +1949,18 @@ function PlasticLimitTable({
               </td>
 
               <td className="container-cell">
-                {trial.container}
+
+                <input
+                  value={trial.container}
+                  onChange={(event) =>
+                    updateTrial(
+                      trial.trial,
+                      "container",
+                      event.target.value
+                    )
+                  }
+                />
+
               </td>
 
               <td>
@@ -1264,7 +2009,24 @@ function PlasticLimitTable({
               </td>
 
               <td className="calculated-cell">
-                {trial.waterContent}
+                {waterContentOf(
+                  trial.containerMass,
+                  trial.wetContainer,
+                  trial.dryContainer
+                )}
+              </td>
+
+              <td>
+
+                <button
+                  type="button"
+                  className="use-button"
+                  title="Remove trial"
+                  onClick={() => removeTrial(trial.trial)}
+                >
+                  ×
+                </button>
+
               </td>
 
             </tr>
@@ -1274,6 +2036,10 @@ function PlasticLimitTable({
         </tbody>
 
       </table>
+
+      <button type="button" className="re-add" onClick={addTrial}>
+        + Add plastic trial
+      </button>
 
     </div>
   );
@@ -1553,15 +2319,15 @@ function ShrinkagePanel() {
         </Field>
 
         <Field label="Initial wet mass (g)">
-          <input defaultValue="50.00" />
+          <input />
         </Field>
 
         <Field label="Dry mass (g)">
-          <input defaultValue="34.50" />
+          <input />
         </Field>
 
         <Field label="Final volume (cm³)">
-          <input defaultValue="18.20" />
+          <input />
         </Field>
 
       </div>
@@ -1576,6 +2342,8 @@ function ShrinkagePanel() {
 
 interface ConsolidationProps {
   method: string;
+  /** Real active method profiles for this test type (lab.method_definition). */
+  methodOptions: string[];
   setMethod: (value: string) => void;
   consolidationTab: ConsolidationTab;
   setConsolidationTab: (
@@ -1585,6 +2353,7 @@ interface ConsolidationProps {
 
 function ConsolidationSection({
   method,
+  methodOptions,
   setMethod,
   consolidationTab,
   setConsolidationTab,
@@ -1616,44 +2385,49 @@ function ConsolidationSection({
             }
           >
 
-            <option>
-              IS 2720 Part 15 - Oedometer
-            </option>
+            {/* Active method definitions for consolidation from the database. */}
+            {methodOptions.length === 0 && (
+              <option value="">
+                No active method for this test type
+              </option>
+            )}
 
-            <option>
-              BS 1377 Part 5
-            </option>
+            {methodOptions.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
 
           </select>
 
         </Field>
 
         <Field label="Diameter (mm)">
-          <input defaultValue="75.00" />
+          <input />
         </Field>
 
         <Field label="Initial height (mm)">
-          <input defaultValue="20.00" />
+          <input />
         </Field>
 
         <Field label="Initial void ratio">
-          <input defaultValue="1.120" />
+          <input />
         </Field>
 
         <Field label="Initial water content (%)">
-          <input defaultValue="42.5" />
+          <input />
         </Field>
 
         <Field label="Initial bulk density (Mg/m³)">
-          <input defaultValue="1.72" />
+          <input />
         </Field>
 
         <Field label="Particle density (Mg/m³)">
-          <input defaultValue="2.65" />
+          <input />
         </Field>
 
         <Field label="Temperature (C)">
-          <input defaultValue="26.0" />
+          <input />
         </Field>
 
       </div>
@@ -1745,7 +2519,7 @@ function ConsolidationSection({
 function ConsolidationLoadStages() {
 
   return (
-    <div className="table-wrapper">
+    <div className="table-scroll">
 
       <table className="results-table consolidation-table">
 
@@ -1765,6 +2539,15 @@ function ConsolidationLoadStages() {
         </thead>
 
         <tbody>
+
+          {CONSOLIDATION_STAGES.length === 0 && (
+            <tr>
+              <td colSpan={8} className="re-muted">
+                No load stages entered. Consolidation is display-only in this
+                build - readings are not yet bound to a calculation engine.
+              </td>
+            </tr>
+          )}
 
           {CONSOLIDATION_STAGES.map(
             (stage) => (
@@ -1827,7 +2610,7 @@ function ConsolidationLoadStages() {
 function ConsolidationTimeReadings() {
 
   return (
-    <div className="table-wrapper">
+    <div className="table-scroll">
 
       <table className="results-table">
 
@@ -1846,75 +2629,10 @@ function ConsolidationTimeReadings() {
         <tbody>
 
           <tr>
-
-            <td>
-              1
+            <td colSpan={5} className="re-muted">
+              No time readings entered. Time-deformation series entry is not
+              implemented in this build.
             </td>
-
-            <td>
-              <input defaultValue="0" />
-            </td>
-
-            <td>
-              <input defaultValue="0.000" />
-            </td>
-
-            <td>
-              <input defaultValue="0.000" />
-            </td>
-
-            <td>
-              Primary loading
-            </td>
-
-          </tr>
-
-          <tr>
-
-            <td>
-              1
-            </td>
-
-            <td>
-              <input defaultValue="0.25" />
-            </td>
-
-            <td>
-              <input defaultValue="0.120" />
-            </td>
-
-            <td>
-              <input defaultValue="0.012" />
-            </td>
-
-            <td>
-              -
-            </td>
-
-          </tr>
-
-          <tr>
-
-            <td>
-              1
-            </td>
-
-            <td>
-              <input defaultValue="1.00" />
-            </td>
-
-            <td>
-              <input defaultValue="0.240" />
-            </td>
-
-            <td>
-              <input defaultValue="0.024" />
-            </td>
-
-            <td>
-              -
-            </td>
-
           </tr>
 
         </tbody>
@@ -1985,51 +2703,14 @@ function ElogStress() {
             className="chart-grid"
           />
 
-          <polyline
-            points="
-              100,70
-              190,105
-              300,150
-              420,215
-              560,270
-            "
-            className="elog-line"
-          />
-
-          <circle
-            cx="100"
-            cy="70"
-            r="5"
-            className="flow-point"
-          />
-
-          <circle
-            cx="190"
-            cy="105"
-            r="5"
-            className="flow-point"
-          />
-
-          <circle
-            cx="300"
-            cy="150"
-            r="5"
-            className="flow-point"
-          />
-
-          <circle
-            cx="420"
-            cy="215"
-            r="5"
-            className="flow-point"
-          />
-
-          <circle
-            cx="560"
-            cy="270"
-            r="5"
-            className="flow-point"
-          />
+          <text
+            x="350"
+            y="170"
+            textAnchor="middle"
+            className="chart-label"
+          >
+            No consolidation readings yet
+          </text>
 
         </svg>
 
@@ -2075,7 +2756,7 @@ function CvPlots() {
           </div>
 
           <strong>
-            Cv = 2.6 m²/yr
+            Not computed
           </strong>
 
         </div>
@@ -2091,7 +2772,7 @@ function CvPlots() {
           </div>
 
           <strong>
-            Cv = 2.3 m²/yr
+            Not computed
           </strong>
 
         </div>
@@ -2099,52 +2780,6 @@ function CvPlots() {
       </div>
 
     </div>
-  );
-}
-
-/* ============================================================
-   GENERIC TEST
-   ============================================================ */
-
-function GenericTestSection({
-  title,
-  ags,
-  description,
-}: {
-  title: string;
-  ags: string;
-  description: string;
-}) {
-
-  return (
-    <section className="results-card">
-
-      <div className="results-card-header">
-
-        <h2>
-          {title}
-        </h2>
-
-        <span className="ags-label">
-          {ags}
-        </span>
-
-      </div>
-
-      <div className="simple-method-panel">
-
-        <p>
-          {description}
-        </p>
-
-        <div className="coming-soon">
-          Test-specific reading interface
-          will be implemented here.
-        </div>
-
-      </div>
-
-    </section>
   );
 }
 
@@ -2157,30 +2792,66 @@ function WorkflowItem({
   label,
   active = false,
   done = false,
+  pending = false,
+  caption,
+  hint,
+  onClick,
 }: {
   number: string;
   label: string;
   active?: boolean;
   done?: boolean;
+  /** Stage not reached yet: shown muted so it cannot be mistaken for progress. */
+  pending?: boolean;
+  caption?: string;
+  hint?: string;
+  onClick?: () => void;
 }) {
 
   const className = active
     ? "workflow-item active"
     : done
     ? "workflow-item done"
+    : pending
+    ? "workflow-item pending"
     : "workflow-item";
 
-  return (
-    <div className={className}>
+  const inner = (
+    <>
+      <span className="workflow-head">
+        <span className="workflow-number">
+          {number}
+        </span>
 
-      <span className="workflow-number">
-        {number}
+        <strong>
+          {label}
+        </strong>
       </span>
 
-      <strong>
-        {label}
-      </strong>
+      {caption && (
+        <span className="workflow-caption">
+          {caption}
+        </span>
+      )}
+    </>
+  );
 
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        className={`${className} workflow-item-button`}
+        title={hint}
+        onClick={onClick}
+      >
+        {inner}
+      </button>
+    );
+  }
+
+  return (
+    <div className={className} title={hint}>
+      {inner}
     </div>
   );
 }
