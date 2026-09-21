@@ -490,8 +490,7 @@ export function ResultsEntryTab() {
             TEST CATALOG
             =================================================== */}
 
-        <aside className="test-catalog">
-
+        <aside className="catalog">
 
           {TESTS.map((test) => {
 
@@ -502,11 +501,7 @@ export function ResultsEntryTab() {
               <button
                 key={test.id}
                 type="button"
-                className={
-                  active
-                    ? "test-catalog-row active"
-                    : "test-catalog-row"
-                }
+                className={`item ${active ? "active" : ""}`}
                 onClick={() =>
                   handleTestChange(test.id)
                 }
@@ -1294,6 +1289,29 @@ function AtterbergFlowCurve({
   evaluation: Evaluation | null;
 }) {
 
+  // Map the computed flow-curve points (x = blows, y = water content) into
+  // the SVG chart area: x 70..560 (log blows), y 220..40 (inverted).
+  const X0 = 70, X1 = 560, Y0 = 40, Y1 = 240;
+  const BLOW_MIN = 1, BLOW_MAX = 100;
+
+  const curve = evaluation?.curve ?? [];
+
+  const wc = curve.map((p) => p.y).filter(Number.isFinite);
+  const wMin = wc.length ? Math.min(...wc) : 20;
+  const wMax = wc.length ? Math.max(...wc) : 80;
+  const wSpan = wMax - wMin || 1;
+
+  const sx = (blows: number) =>
+    X0 + (Math.log10(Math.max(blows, BLOW_MIN)) - Math.log10(BLOW_MIN)) /
+      (Math.log10(BLOW_MAX) - Math.log10(BLOW_MIN)) * (X1 - X0);
+  const sy = (w: number) => Y1 - ((w - wMin) / wSpan) * (Y1 - Y0);
+
+  // The last two curve rows are the fitted line endpoints (the engine appends
+  // them after the trial rows), so draw the line through them and the trials
+  // as points.
+  const trialPts = curve.slice(0, Math.max(0, curve.length - 2));
+  const fitPts = curve.slice(Math.max(0, curve.length - 2));
+
   return (
     <div className="flow-curve-card">
 
@@ -1378,45 +1396,36 @@ function AtterbergFlowCurve({
             className="chart-grid"
           />
 
-          <line
-            x1="125"
-            y1="80"
-            x2="510"
-            y2="235"
-            className="flow-line"
-          />
+          {fitPts.length === 2 && (
+            <line
+              x1={sx(fitPts[0].x)}
+              y1={sy(fitPts[0].y)}
+              x2={sx(fitPts[1].x)}
+              y2={sy(fitPts[1].y)}
+              className="flow-line"
+            />
+          )}
 
-          <circle
-            cx="180"
-            cy="95"
-            r="6"
-            className="flow-point"
-          />
-
-          <circle
-            cx="350"
-            cy="150"
-            r="6"
-            className="flow-point"
-          />
-
-          <circle
-            cx="470"
-            cy="205"
-            r="6"
-            className="flow-point"
-          />
+          {trialPts.map((p, i) => (
+            <circle
+              key={i}
+              cx={sx(p.x)}
+              cy={sy(p.y)}
+              r="6"
+              className="flow-point"
+            />
+          ))}
 
           <line
-            x1="370"
+            x1={sx(25)}
             y1="40"
-            x2="370"
+            x2={sx(25)}
             y2="260"
             className="blow-line"
           />
 
           <text
-            x="380"
+            x={sx(25) + 10}
             y="55"
             className="chart-label"
           >
@@ -2028,21 +2037,11 @@ function ElogStress() {
 
       <div className="graph-summary">
 
-        <span>
-          Compression index
-        </span>
-
-        <strong>
-          0.31
-        </strong>
-
-        <span>
-          Preconsolidation stress
-        </span>
-
-        <strong>
-          92 kPa
-        </strong>
+        <div className="re-note">
+          Consolidation derived parameters (Cc, Cr, preconsolidation stress)
+          are not computed in this build yet. They appear once consolidation
+          readings are bound to the calculation engine.
+        </div>
 
       </div>
 

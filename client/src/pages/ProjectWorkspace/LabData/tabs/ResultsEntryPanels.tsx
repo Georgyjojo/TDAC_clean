@@ -304,16 +304,17 @@ const MODES = ["Manual", "Instrument file", "AGS", "Excel / CSV", "Bulk paste", 
 
 export function InputModes() {
   return (
-    <div className="results-input-bar">
-      <span className="input-mode-label">Input:</span>
+    <div className="modebar">
+      <b>Input:</b>
       {MODES.map((m) => (
-        <button key={m} type="button" className={m === "Manual" ? "input-mode active" : "input-mode"}
+        <button key={m} type="button" className={m === "Manual" ? "mode active" : "mode"}
           disabled={m !== "Manual"} style={m !== "Manual" ? { opacity: 0.55, cursor: "not-allowed" } : undefined}
           title={m === "Manual" ? "Available" : "Not available: no backend support yet"}>
           {m}
         </button>
       ))}
-      <button type="button" className="method-template-button" disabled style={{ opacity: 0.55, cursor: "not-allowed" }}
+      <span className="modebar-spacer" />
+      <button type="button" className="btn btn-sm method-template-button" disabled style={{ opacity: 0.55, cursor: "not-allowed" }}
         title="Not available yet">
         Download method template
       </button>

@@ -244,6 +244,27 @@ export function evaluate(test: TestKey, d: MethodData): Evaluation {
     if (!pl.length) err("At least one plastic-limit trial is required.");
     const PL = pl.length ? pl.reduce((a, b) => a + b, 0) / pl.length : NaN;
     const PI = LL - PL;
+    // Flow curve: real trial points plus the fitted least-squares line
+    // (x = blows, y = water content), so the chart draws the user's actual
+    // data instead of fixed sample points.
+    if (pts.length >= 2) {
+      const xs = pts.map((p) => p.x);
+      const x0 = Math.min(...xs), x1 = Math.max(...xs);
+      const syy = pts.reduce((a, p) => a + p.y, 0);
+      const sxy = pts.reduce((a, p) => a + p.x * p.y, 0);
+      const xx = pts.reduce((a, p) => a + p.x * p.x, 0);
+      const den = pts.length * xx - xs.reduce((a, p) => a + p, 0) ** 2;
+      if (den !== 0) {
+        const slope = (pts.length * sxy - xs.reduce((a, p) => a + p, 0) * syy) / den;
+        const intercept = (syy - slope * xs.reduce((a, p) => a + p, 0)) / pts.length;
+        const fitY = (x: number) => slope * x + intercept;
+        curve = [
+          ...pts.map((p) => ({ x: Math.pow(10, p.x), y: p.y })),
+          { x: Math.pow(10, x0), y: fitY(x0) },
+          { x: Math.pow(10, x1), y: fitY(x1) },
+        ];
+      }
+    }
     results.push(
       { label: "Liquid limit", value: fmt(LL, 0), unit: "%" },
       { label: "Plastic limit", value: fmt(PL, 0), unit: "%" },
