@@ -24,6 +24,7 @@ from app.field_data_service import (
     get_sampling_records,
     create_sampling_record,
     update_sampling_record,
+    delete_sampling_record,
     get_project_samples,
     delete_borehole_record,
 )
