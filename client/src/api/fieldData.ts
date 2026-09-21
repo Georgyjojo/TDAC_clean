@@ -375,6 +375,24 @@ export async function getProjectSamples(
   return data.samples;
 }
 
+export async function getProjectSampleTests(
+  projectId: string
+) {
+  const response = await apiClient(
+    `/api/portfolio/projects/${projectId}/sample-tests`
+  );
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      data.detail || "Failed to load sample test information."
+    );
+  }
+
+  return data.samples;
+}
+
 export async function createProjectLabTest(
   projectId: string,
   payload: {
