@@ -1032,11 +1032,16 @@ async def _project_ags_rows(connection, test, project_id: str, actor: str):
     if not isinstance(outputs, dict):
         outputs = {}
 
-    released = {
-        key: value
-        for key, value in outputs.items()
-        if key in declared and isinstance(value, (int, float))
-    }
+    # Released values are stored either under the normalised "outputs" object
+    # (Results Entry) or as flat top-level keys (older revisions). Read both so
+    # an approved revision written before the normalised shape can still be
+    # released. Only real numbers count; booleans are not measurements.
+    released = {}
+    for key in declared:
+        value = outputs.get(key, calc.get(key))
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            continue
+        released[key] = value
 
     if not released:
         raise ValueError(

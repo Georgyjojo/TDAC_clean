@@ -1010,3 +1010,42 @@ JOIN (VALUES
 WHERE t.samp_id = 'TDAC-2026-09-901-7'
   AND t.test_type = 'CONSOLIDATION'
 ON CONFLICT DO NOTHING;
+
+--------------------------------------------------------------------------------
+-- PART 6 - revision calculation snapshots
+--
+-- Results Entry stores a revision's calculated outputs as {"outputs": {...}}.
+-- Revisions seeded without that block have nothing for the AGS release step to
+-- project, so a checked and approved test could never be published. Rather than
+-- invent numbers, take them from each revision's own recorded readings: the
+-- triaxial specimen already carries its measured undrained shear strength, and
+-- the gradation readings carry percent passing and retained at each sieve.
+-- Snapshots are only filled when empty, so re-running this changes nothing.
+--------------------------------------------------------------------------------
+UPDATE lab."test_revision" r
+   SET "calculation_output_snapshot" = jsonb_build_object(
+           'outputs', jsonb_build_object('cu', s."undrained_shear_strength_kpa"))
+  FROM lab."triaxial_uu_specimen" s
+ WHERE s."test_id" = r."test_id"
+   AND s."revision_no" = r."revision_no"
+   AND s."undrained_shear_strength_kpa" IS NOT NULL
+   AND (r."calculation_output_snapshot" IS NULL
+        OR r."calculation_output_snapshot" = '{}'::jsonb);
+
+UPDATE lab."test_revision" r
+   SET "calculation_output_snapshot" = jsonb_build_object(
+           'outputs', jsonb_build_object(
+               'percent_passing', f."percent_passing",
+               'percent_retained', f."percent_retained"))
+  FROM (
+        SELECT DISTINCT ON ("test_id", "revision_no")
+               "test_id", "revision_no", "percent_passing", "percent_retained"
+          FROM lab."psd_sieve_reading"
+         WHERE "percent_passing" IS NOT NULL
+           AND "percent_retained" IS NOT NULL
+         ORDER BY "test_id", "revision_no", "sieve_opening_mm" ASC
+       ) f
+ WHERE f."test_id" = r."test_id"
+   AND f."revision_no" = r."revision_no"
+   AND (r."calculation_output_snapshot" IS NULL
+        OR r."calculation_output_snapshot" = '{}'::jsonb);

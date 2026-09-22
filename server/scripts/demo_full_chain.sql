@@ -1,6 +1,6 @@
 -- TDAC demo data: full chain from project through field data to lab tests.
 -- Follows the app's real ID rules: project TDAC-YYYY-MM-N, sample {project}-{N}.
--- Run order matters: PROJ -> FILE -> LOCA -> GEOL/ISPT + PROJ_METADATA -> SAMP -> lab.test.
+-- Run order matters: PROJ -> FILE -> LOCA -> GEOL/ISPT + PROJ_METADATA -> SAMP -> CORE/sample-id map -> lab.test.
 -- Guarded with WHERE NOT EXISTS / ON CONFLICT so re-running never duplicates.
 --
 -- Sources: project/location/sample/lab test rows already in demo_lab_data.sql;
@@ -156,3 +156,55 @@ WHERE NOT EXISTS (
     WHERE x.loca_id = t.loca_id AND x.samp_id = t.samp_id
       AND x.spec_ref = t.spec_ref AND x.test_type = t.test_type
 );
+
+--------------------------------------------------------------------------------
+-- 6. Sampling / coring records
+--
+-- The app records a sample as a CORE interval plus its SAMP identity in one
+-- action (create_sampling_record); the Sampling / Coring view reads CORE joined
+-- to the app's sample-id map. This seed originally wrote only the SAMP half, so
+-- that view came up empty. Backfill the missing half from the samples already
+-- present. Recovery and RQD are left NULL: these are undisturbed soil samples,
+-- not rock core runs, and no recovery was measured. Re-running changes nothing.
+--------------------------------------------------------------------------------
+INSERT INTO "ags42"."CORE" ("PROJ_ID", "LOCA_ID", "CORE_TOP", "CORE_BASE", "CORE_REM")
+SELECT
+    s."PROJ_ID",
+    s."LOCA_ID",
+    s."SAMP_TOP",
+    s."SAMP_BASE",
+    CASE s."SAMP_TYPE"
+        WHEN 'U' THEN 'Undisturbed (UD) sample'
+        WHEN 'D' THEN 'Disturbed sample'
+        ELSE NULL
+    END
+FROM "ags42"."SAMP" s
+WHERE s."PROJ_ID" = 'TDAC-2026-09-901'
+  AND NOT EXISTS (
+      SELECT 1 FROM "ags42"."CORE" c
+      WHERE c."PROJ_ID" = s."PROJ_ID"
+        AND c."LOCA_ID" = s."LOCA_ID"
+        AND c."CORE_TOP" = s."SAMP_TOP"
+        AND c."CORE_BASE" = s."SAMP_BASE"
+  );
+
+INSERT INTO "tdac"."SAMPLING_RECORD_ID" ("SAMPLE_ID", "PROJ_ID", "LOCA_ID", "DEPTH_FROM")
+SELECT s."SAMP_ID", s."PROJ_ID", s."LOCA_ID", s."SAMP_TOP"
+FROM "ags42"."SAMP" s
+WHERE s."PROJ_ID" = 'TDAC-2026-09-901'
+  AND NOT EXISTS (
+      SELECT 1 FROM "tdac"."SAMPLING_RECORD_ID" r
+      WHERE r."PROJ_ID" = s."PROJ_ID"
+        AND r."LOCA_ID" = s."LOCA_ID"
+        AND r."DEPTH_FROM" = s."SAMP_TOP"
+  );
+
+-- Keep the sample-id counter ahead of the seeded ids so the next record
+-- continues the sequence (8, 9, ...) instead of colliding with a sample.
+INSERT INTO "tdac"."SAMPLE_ID_COUNTER" ("PROJ_ID", "LAST_NUMBER")
+SELECT 'TDAC-2026-09-901', MAX((regexp_replace(s."SAMP_ID", '^.*-', ''))::int)
+FROM "ags42"."SAMP" s
+WHERE s."PROJ_ID" = 'TDAC-2026-09-901'
+  AND s."SAMP_ID" ~ '-[0-9]+$'
+ON CONFLICT ("PROJ_ID") DO UPDATE
+SET "LAST_NUMBER" = GREATEST("tdac"."SAMPLE_ID_COUNTER"."LAST_NUMBER", EXCLUDED."LAST_NUMBER");
