@@ -5,6 +5,9 @@
 --          type-map used by the AGSValidator schema builder: ID/PA/X ->
 --          TEXT, nDP -> NUMERIC, DT -> TIMESTAMP WITH TIME ZONE)
 --   tdac:  roles, users                  (auth contract of app/auth/*)
+--          PROJ_METADATA                  (project/report settings read and
+--                                          written by portfolio_service.py,
+--                                          including PROJECT_TYPE)
 --
 -- Idempotent: safe to re-run. Runs against the single real database
 -- ags42_data (same one the app and the AGS projects use):
@@ -115,3 +118,38 @@ CREATE TABLE IF NOT EXISTS tdac.users (
     is_active       BOOLEAN NOT NULL DEFAULT TRUE,
     created_at      TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
+
+-- ---------------------------------------------------------------------
+-- tdac project metadata (Create project + Overview contract)
+-- ---------------------------------------------------------------------
+-- The project screens read and write these fields, PROJECT_TYPE among them,
+-- so the table has to exist before any project screen or seed runs.
+
+CREATE TABLE IF NOT EXISTS "tdac"."PROJ_METADATA" (
+    "PROJ_ID"                               TEXT PRIMARY KEY,
+    "ROAD_REFERENCE"                        TEXT,
+    "CHAINAGE_TEXT"                         TEXT,
+    "STRUCTURE_REFERENCE"                   TEXT,
+    "SELECTED_BOREHOLES"                    TEXT,
+    "PROJECT_TYPE"                          TEXT,
+    "REPORT_TYPE"                           TEXT,
+    "REPORT_TITLE"                          TEXT,
+    "REPORT_VOLUME_TITLE"                   TEXT,
+    "DOCUMENT_REFERENCE"                    TEXT,
+    "REVISION"                              TEXT,
+    "REPORT_DATE"                           DATE,
+    "ISSUE_STATUS"                          TEXT,
+    "TDAC_COMPANY_NAME"                     TEXT,
+    "GROUNDWATER_BASIS"                     TEXT,
+    "DESIGN_STANDARD_BASIS"                 TEXT,
+    "FACTOR_OF_SAFETY_BASIS"                TEXT,
+    "LOAD_COMBINATION_BASIS"                TEXT,
+    "CONSTRUCTION_VERIFICATION_REQUIREMENT" TEXT,
+    "PILE_LOAD_TEST_REQUIREMENT"            TEXT
+);
+
+-- A database created before a field was introduced keeps its old shape.
+-- Add anything missing so an older clone matches this file.
+
+ALTER TABLE "tdac"."PROJ_METADATA"
+    ADD COLUMN IF NOT EXISTS "PROJECT_TYPE" TEXT;
