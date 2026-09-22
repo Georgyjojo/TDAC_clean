@@ -247,7 +247,9 @@ const CONSOLIDATION_STAGES: {
   cvLog: string;
 }[] = [];
 
-export function ResultsEntryTab() {
+export function ResultsEntryTab(
+  { selectedTestId }: { selectedTestId: string | null; }
+) {
   const [selectedTest, setSelectedTest] =
     useState<TestType>("PSD");
 
@@ -320,6 +322,18 @@ export function ResultsEntryTab() {
       .catch(() => setLabTests([]));
   }, [projectId]);
 
+  useEffect(() => {
+    if (!selectedTestId) {
+      return;
+    }
+
+    if (!labTests.some((test) => test.test_id === selectedTestId)) {
+      return;
+    }
+
+    chooseLabTest(selectedTestId);
+  }, [selectedTestId, labTests]);
+  
   // Method profiles are the real active method definitions, so the method
   // fields can never show a standard the database does not know about.
   useEffect(() => {

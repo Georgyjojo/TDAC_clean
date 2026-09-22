@@ -3271,3 +3271,61 @@
     width: 100%;
   }
 }
+
+/* Lab Overview action buttons */
+
+.lab-overview-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.lab-overview-refresh-button,
+.lab-overview-add-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+
+  min-height: 36px;
+  padding: 8px 14px;
+
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+
+  font-size: 13px;
+  font-weight: 500;
+
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.lab-overview-refresh-button {
+  background: #ffffff;
+  color: #374151;
+}
+
+.lab-overview-refresh-button:hover {
+  background: #f9fafb;
+  border-color: #9ca3af;
+}
+
+.lab-overview-add-button {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #ffffff;
+}
+
+.lab-overview-add-button:hover {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+}
+
+.lab-overview-refresh-button:disabled,
+.lab-overview-add-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

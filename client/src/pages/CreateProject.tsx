@@ -16,6 +16,7 @@ export function CreateProjectPage() {
     project_client: "",
     consultant_name:"",
     contractor_name:"",
+    project_type: "",
 
     road_reference: "",
     chainage_text: "",
@@ -253,8 +254,9 @@ export function CreateProjectPage() {
             form.structure_reference.trim() || null,
           selected_boreholes:
             form.selected_boreholes.trim() || null,
-
+          project_type: form.project_type || null,
           report_type: form.report_type || null,
+          
           report_title:
             form.report_title.trim() || null,
           report_volume_title:
@@ -406,6 +408,37 @@ export function CreateProjectPage() {
                   onChange={handleChange}
                   required
                 />
+              </div>
+
+              {/* Project Type */}
+              <div className="form-field">
+                <label htmlFor="project_type">
+                  Project Type
+                </label>
+
+                <select
+                  id="project_type"
+                  name="project_type"
+                  value={form.project_type}
+                  onChange={handleChange}
+                  required
+                >
+                  <option value="">
+                    Select project type
+                  </option>
+
+                  <option value="LAB_ONLY">
+                    Lab Only
+                  </option>
+
+                  <option value="REPORT_ONLY">
+                    Report Only
+                  </option>
+
+                  <option value="LAB_AND_REPORT">
+                    Lab + Report
+                  </option>
+                </select>
               </div>
 
               {/* Site Location */}

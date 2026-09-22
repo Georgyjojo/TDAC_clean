@@ -30,6 +30,7 @@ export function LabDataTabs({
   projectId,
 }: LabDataTabsProps) {
   const [activeTab, setActiveTab] = useState<LabTab>("overview");
+  const [selectedTestId, setSelectedTestId] = useState<string | null>(null);
 
   return (
     <div>
@@ -50,12 +51,21 @@ export function LabDataTabs({
 
       <div className="lab-data-tab-content">
         {activeTab === "overview" && (
-          <OverviewTab projectId={projectId} />
+          <OverviewTab
+            projectId={projectId}
+            onAddTest={() => setActiveTab("test-register")}
+            onOpenResults={(testId) => {
+              setSelectedTestId(testId);
+              setActiveTab("results-entry");
+            }}
+          />
         )}
         {activeTab === "test-register" && (
           <TestRegisterTab projectId={projectId} />
         )}
-        {activeTab === "results-entry" && <ResultsEntryTab />}
+        {activeTab === "results-entry" && (
+          <ResultsEntryTab selectedTestId={selectedTestId} />
+        )}
         {activeTab === "historic-data" && (
            <HistoricDataTab projectId={projectId} />
         )}

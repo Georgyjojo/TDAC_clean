@@ -76,17 +76,21 @@ async def get_project(project_id: str):
         project = await connection.fetchrow(
             """
             SELECT
-                "PROJ_ID",
-                "PROJ_NAME",
-                "PROJ_LOC",
-                "PROJ_CLNT",
-                "PROJ_ENG",
-                "PROJ_CONT"
-            FROM "ags42"."PROJ"
-            WHERE "PROJ_ID" = $1
+                p."PROJ_ID",
+                p."PROJ_NAME",
+                p."PROJ_LOC",
+                p."PROJ_CLNT",
+                p."PROJ_ENG",
+                p."PROJ_CONT",
+                pm."PROJECT_TYPE"
+            FROM "ags42"."PROJ" p
+            LEFT JOIN "tdac"."PROJ_METADATA" pm
+                ON pm."PROJ_ID" = p."PROJ_ID"
+            WHERE p."PROJ_ID" = $1
             """,
             project_id,
         )
+
     return project
 
 async def update_project(
@@ -220,6 +224,7 @@ async def create_project_metadata(
     chainage_text: str | None = None,
     structure_reference: str | None = None,
     selected_boreholes: str | None = None,
+    project_type: str | None = None,
     report_type: str | None = None,
     report_title: str | None = None,
     report_volume_title: str | None = None,
@@ -244,6 +249,7 @@ async def create_project_metadata(
                 "CHAINAGE_TEXT",
                 "STRUCTURE_REFERENCE",
                 "SELECTED_BOREHOLES",
+                "PROJECT_TYPE",
                 "REPORT_TYPE",
                 "REPORT_TITLE",
                 "REPORT_VOLUME_TITLE",
@@ -263,7 +269,7 @@ async def create_project_metadata(
                 $1, $2, $3, $4, $5,
                 $6, $7, $8, $9, $10,
                 $11, $12, $13, $14, $15,
-                $16, $17, $18, $19
+                $16, $17, $18, $19, $20
             )
             RETURNING
                 "PROJ_ID",
@@ -271,6 +277,7 @@ async def create_project_metadata(
                 "CHAINAGE_TEXT",
                 "STRUCTURE_REFERENCE",
                 "SELECTED_BOREHOLES",
+                "PROJECT_TYPE",
                 "REPORT_TYPE",
                 "REPORT_TITLE",
                 "REPORT_VOLUME_TITLE",
@@ -291,6 +298,7 @@ async def create_project_metadata(
             chainage_text,
             structure_reference,
             selected_boreholes,
+            project_type,
             report_type,
             report_title,
             report_volume_title,

@@ -11,6 +11,7 @@ class ProjectMetadataCreate(BaseModel):
     chainage_text: str | None = None
     structure_reference: str | None = None
     selected_boreholes: str | None = None
+    project_type: str | None = None
 
     report_type: str | None = None
     report_title: str | None = None

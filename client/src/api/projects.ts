@@ -6,6 +6,7 @@ export interface ProjectRecord {
   project_client: string;
   consultant_name: string;
   contractor_name: string;
+  project_type: string | null;
 }
 export async function getProject(projectId: string): Promise<ProjectRecord> {
   const response = await apiClient(

@@ -161,6 +161,26 @@ async def update_borehole_record(
 
     return row
 
+async def delete_borehole_record(
+    project_id: str,
+    loca_id: str,
+    depth_from: Decimal,
+):
+    async with database.pool.acquire() as connection:
+        result = await connection.execute(
+            """
+            DELETE FROM "ags42"."GEOL"
+            WHERE "PROJ_ID" = $1
+              AND "LOCA_ID" = $2
+              AND "GEOL_TOP" = $3
+            """,
+            project_id,
+            loca_id,
+            depth_from,
+        )
+
+    return result
+
 
 # ---------------------------------------------------------------------------
 # SPT (ISPT)
@@ -283,6 +303,25 @@ async def update_spt_record(
 
     return row
 
+async def delete_spt_record(
+    project_id: str,
+    loca_id: str,
+    spt_depth: Decimal,
+):
+    async with database.pool.acquire() as connection:
+        result = await connection.execute(
+            """
+            DELETE FROM "ags42"."ISPT"
+            WHERE "PROJ_ID" = $1
+              AND "LOCA_ID" = $2
+              AND "ISPT_TOP" = $3
+            """,
+            project_id,
+            loca_id,
+            spt_depth,
+        )
+
+    return result
 
 # ---------------------------------------------------------------------------
 # Sampling / Coring (CORE, with Rock Description derived from GEOL)
@@ -518,6 +557,102 @@ async def create_sampling_record(
                 "rqd": row["rqd"],
                 "remark": row["remark"],
             }
+
+
+async def delete_sampling_record(
+    project_id: str,
+    loca_id: str,
+    depth_from: Decimal,
+):
+    async with database.pool.acquire() as connection:
+        async with connection.transaction():
+
+            # ---------------------------------------------------------
+            # Find the TDAC Sample ID for this sampling record
+            # ---------------------------------------------------------
+            sample_id = await connection.fetchval(
+                """
+                SELECT "SAMPLE_ID"
+                FROM "tdac"."SAMPLING_RECORD_ID"
+                WHERE "PROJ_ID" = $1
+                  AND "LOCA_ID" = $2
+                  AND "DEPTH_FROM" = $3
+                """,
+                project_id,
+                loca_id,
+                depth_from,
+            )
+
+            if sample_id is None:
+                return False
+
+            # ---------------------------------------------------------
+            # Do not delete a sample that already has laboratory tests
+            # ---------------------------------------------------------
+            lab_test_exists = await connection.fetchval(
+                """
+                SELECT 1
+                FROM "lab"."test"
+                WHERE "samp_id" = $1
+                  AND "loca_id" = $2
+                LIMIT 1
+                """,
+                sample_id,
+                loca_id,
+            )
+
+            if lab_test_exists:
+                raise ValueError(
+                    f"Cannot delete sample {sample_id} because "
+                    "laboratory tests already exist for this sample."
+                )
+
+            # ---------------------------------------------------------
+            # Delete TDAC sample mapping
+            # ---------------------------------------------------------
+            await connection.execute(
+                """
+                DELETE FROM "tdac"."SAMPLING_RECORD_ID"
+                WHERE "PROJ_ID" = $1
+                  AND "LOCA_ID" = $2
+                  AND "DEPTH_FROM" = $3
+                """,
+                project_id,
+                loca_id,
+                depth_from,
+            )
+
+            # ---------------------------------------------------------
+            # Delete AGS SAMP record
+            # ---------------------------------------------------------
+            await connection.execute(
+                """
+                DELETE FROM "ags42"."SAMP"
+                WHERE "PROJ_ID" = $1
+                  AND "LOCA_ID" = $2
+                  AND "SAMP_ID" = $3
+                """,
+                project_id,
+                loca_id,
+                sample_id,
+            )
+
+            # ---------------------------------------------------------
+            # Delete AGS CORE record
+            # ---------------------------------------------------------
+            await connection.execute(
+                """
+                DELETE FROM "ags42"."CORE"
+                WHERE "PROJ_ID" = $1
+                  AND "LOCA_ID" = $2
+                  AND "CORE_TOP" = $3
+                """,
+                project_id,
+                loca_id,
+                depth_from,
+            )
+
+            return True
 
 async def update_sampling_record(
     project_id: str,
