@@ -69,9 +69,15 @@ The connection lives in `server/.env` (see `server/env.sample` for the keys: DB_
 Local Termux quick setup (Postgres already installed via `pkg install postgresql`):
 
 ```bash
+createdb -h 127.0.0.1 -U postgres ags42_data   # skip if the database already exists
 psql -h 127.0.0.1 -U postgres -d ags42_data -f server/scripts/init_local_db.sql   # ensures all tables exist in ags42_data (idempotent)
+psql -h 127.0.0.1 -U postgres -d ags42_data -f server/scripts/seed_lab_methods.sql   # the test methods Results Entry offers (idempotent)
 cd server && python3 scripts/seed_admin.py                           # admin / admin@123
 ```
+
+`init_local_db.sql` writes into `ags42_data` by default, so always pass `-d` yourself. Pointing it at a database you did not mean to touch is the easy mistake here; the script is idempotent, so a repeat run is harmless.
+
+A lab test cannot be created until the method definitions are there: the test declares which method it follows, and that row is what tells Results Entry which outputs to expect.
 
 One database: `ags42_data` is both the development database and the one the end-to-end scripts (`scripts/local_e2e*.sh`) run against. The lab tables they write (`lab.*`) start empty, so test rows are easy to spot and delete afterwards.
 

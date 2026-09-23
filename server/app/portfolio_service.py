@@ -13,12 +13,40 @@ async def get_portfolio_summary():
         projects = await connection.fetch(
             """
             SELECT
-                "PROJ_ID",
-                "PROJ_NAME",
-                "PROJ_LOC",
-                "PROJ_CLNT"
-            FROM "ags42"."PROJ"
-            ORDER BY "PROJ_ID"
+                p."PROJ_ID",
+                p."PROJ_NAME",
+                p."PROJ_LOC",
+                p."PROJ_CLNT",
+                m."PROJECT_TYPE",
+                m."ISSUE_STATUS",
+                m."REPORT_DATE",
+                (
+                    SELECT COUNT(*)
+                    FROM "ags42"."LOCA" l
+                    WHERE l."PROJ_ID" = p."PROJ_ID"
+                ) AS "LOCA_COUNT",
+                (
+                    SELECT COUNT(*)
+                    FROM "ags42"."SAMP" s
+                    WHERE s."PROJ_ID" = p."PROJ_ID"
+                ) AS "SAMP_COUNT",
+                (
+                    SELECT COUNT(*)
+                    FROM "lab"."test" t
+                    JOIN "ags42"."SAMP" s2 ON s2."SAMP_ID" = t."samp_id"
+                    WHERE s2."PROJ_ID" = p."PROJ_ID"
+                ) AS "TEST_COUNT",
+                (
+                    SELECT COUNT(*)
+                    FROM "lab"."test" t
+                    JOIN "ags42"."SAMP" s3 ON s3."SAMP_ID" = t."samp_id"
+                    WHERE s3."PROJ_ID" = p."PROJ_ID"
+                      AND t."status" = 'PUBLISHED'
+                ) AS "PUBLISHED_COUNT"
+            FROM "ags42"."PROJ" p
+            LEFT JOIN "tdac"."PROJ_METADATA" m
+                ON m."PROJ_ID" = p."PROJ_ID"
+            ORDER BY p."PROJ_ID"
             """
         )
 

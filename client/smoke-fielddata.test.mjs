@@ -22,7 +22,7 @@ globalThis.fetch = async () => ({
 const { PlaceholderPanel } = await import(
   "./src/pages/ProjectWorkspace/PlaceholderPanel.tsx"
 );
-const { LabData } = await import("./src/pages/ProjectWorkspace/LabData.tsx");
+const { LabData } = await import("./src/pages/ProjectWorkspace/LabData/index.tsx");
 const { ProcessedData } = await import(
   "./src/pages/ProjectWorkspace/ProcessedData.tsx"
 );

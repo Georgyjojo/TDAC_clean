@@ -109,8 +109,13 @@ check("project id + client + location in meta",
 
 // 3. Overview: info grid + locations panel + excel import + add location
 check("overview: project info panel", !!document.querySelector(".panel .panel-title"));
-check("overview: viewgrid info cards",
-  document.querySelectorAll(".viewgrid .panel").length === 4);
+const overviewSections = [...document.querySelectorAll(".overview-grid .overview-section")];
+const overviewSectionTitles = ["Project Details", "Site & Investigation", "Report & Document Control", "TDAC & Groundwater", "Design Basis"];
+check(`overview: info sections = ${overviewSectionTitles.length} (got ${overviewSections.length})`,
+  overviewSections.length === overviewSectionTitles.length);
+check("overview: info section titles + order",
+  JSON.stringify(overviewSections.map((s) => s.querySelector(".overview-section-title").textContent.trim()))
+    === JSON.stringify(overviewSectionTitles));
 check("overview: excel import button",
   [...document.querySelectorAll("button")].some((b) => b.textContent.trim() === "Import from Excel"));
 check("overview: add location button",

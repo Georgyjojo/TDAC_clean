@@ -64,6 +64,9 @@
 }
 
 .results-entry-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-height: 46px;
   padding: 0 16px;
   border: 1px solid #d4e0e7;
@@ -76,6 +79,17 @@
 
 .results-entry-actions button:hover {
   background: #f7fafb;
+  border-color: #9eb2b7;
+}
+
+.results-entry-actions button:active {
+  transform: translateY(1px);
+}
+
+.results-entry-actions button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
 }
 
 .results-entry-actions .primary-action {
@@ -172,6 +186,10 @@
   border-color: #9eb2b7;
 }
 
+.workflow-item-button:active {
+  transform: translateY(1px);
+}
+
 /* ============================================================
    INPUT BAR
    The bar is the shared shell.css .modebar/.mode system. Only the
@@ -180,13 +198,26 @@
 
 .method-template-button {
   margin-left: auto;
-  min-height: 40px;
+  min-height: 44px;
   padding: 0 15px;
   border: 1px solid #d5e0e6;
   border-radius: 9px;
   background: #ffffff;
   color: #173b52;
   cursor: pointer;
+}
+
+.method-template-button:hover:not(:disabled) {
+  border-color: #9eb2b7;
+}
+
+.method-template-button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.method-template-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 /* ============================================================
@@ -376,17 +407,42 @@
 .calculated-cell {
   color: #173b52;
   font-weight: 500;
+  /* Figures line up column to column when the rows carry different
+     magnitudes. */
+  font-variant-numeric: tabular-nums;
+  text-align: right;
 }
 
+/* The shrink/use toggle in the trial tables: a chip, so the target is
+   reachable with a thumb and the current choice is obvious without
+   relying on colour alone. */
 .use-button {
-  border: 0;
-  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid #d4e0e7;
+  border-radius: 999px;
+  background: #ffffff;
   color: #45687c;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.use-button:hover {
+  background: #f7fafb;
+  border-color: #9eb2b7;
+}
+
+.use-button:active {
+  transform: translateY(1px);
 }
 
 .use-button.active {
+  border-color: #178d89;
+  background: #eef4f4;
   color: #173f4a;
   font-weight: 600;
 }
@@ -694,7 +750,117 @@
 }
 /* ---- Results Entry additions (manual pipeline) ---- */
 .re-subhead{margin:12px 0 6px;font-size:13px}
-.re-add{margin-top:8px}
+
+/* "Add" buttons at the foot of every trial grid: a real target rather
+   than a bare inline word, and dashed so the row it appends to is
+   obvious before the tap. */
+.re-add {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  align-self: flex-start;
+  min-height: 44px;
+  min-width: 168px;
+  margin-top: 10px;
+  padding: 0 16px;
+  border: 1px dashed #d4e0e7;
+  border-radius: 9px;
+  background: #ffffff;
+  color: #173b52;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.re-add:hover {
+  border-style: solid;
+  border-color: #9eb2b7;
+  background: #f7fafb;
+}
+
+.re-add:active {
+  transform: translateY(1px);
+}
+
+/* Row delete: a square target sized for a thumb instead of a bare
+   multiplication sign a few pixels wide. */
+.re-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border: 1px solid #d4e0e7;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #45687c;
+  font-size: 19px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.re-remove:hover {
+  border-color: #9eb2b7;
+  background: #f7fafb;
+}
+
+.re-remove:active {
+  transform: translateY(1px);
+}
+
+/* Keyboard and switch access: one ring for every control in the
+   workbench, so the current target is never invisible. */
+.results-entry button:focus-visible {
+  outline: 2px solid #178d89;
+  outline-offset: 2px;
+}
+
+/* The sub tabs come from shell.css. Only the touch height is lifted
+   here for this workbench; the shell keeps its own colours. */
+.results-entry .subtab {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+}
+
+/* The add button and its hint share one line and wrap onto separate
+   lines once the phone width runs out. */
+.re-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+/* The shared hint sits under a field by default; inside this row it is a
+   sibling of the button, so the offset would push it off centre. */
+.re-row-actions .field-hint {
+  margin-top: 0;
+}
+
+/* Gap inside a panel when a grid has nothing in it yet. Lighter than the
+   page level .empty-state, which is sized for a whole screen. */
+.re-empty {
+  margin: 10px 0;
+  padding: 14px 16px;
+  border: 1px dashed #d4e0e7;
+  border-radius: 9px;
+  background: #ffffff;
+  color: #5b6b6b;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* Which increment a time reading belongs to. */
+.re-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
 .re-muted{color:#5b6b6b;font-size:12px;margin:4px 0}
 .re-ok{color:#1b6e3c;font-size:12px}
 .re-warn{color:#8a5a00;font-size:12px}

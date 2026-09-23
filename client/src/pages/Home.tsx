@@ -1,6 +1,6 @@
 /** Latest entry point - Portfolio Management Centre (Company Home) */
 import { useNavigate } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../auth/AuthContext";
 import {
   getPortfolioSummary,
@@ -14,7 +14,10 @@ interface Project {
   location: string;
   stage: string;
   status: string;
-  dataSummary: string;
+  locas: number;
+  samples: number;
+  tests: number;
+  published: number;
 }
 
 interface Stat {
@@ -24,14 +27,67 @@ interface Stat {
   tone: string;
 }
 
-const STATUS_ROWS = [
-  "In progress",
-  "Pending Mobilization",
-  "Delayed",
-  "On Hold",
-  "Completed",
-  "Delivered",
+const NOT_SET = "Not set";
+
+const STAGE_LABELS: Record<string, string> = {
+  LAB_ONLY: "Lab Only",
+  REPORT_ONLY: "Report Only",
+  LAB_AND_REPORT: "Lab + Report",
+};
+
+const ISSUE_STATUSES = [
+  "Draft",
+  "For Review",
+  "Client Issue",
+  "Final",
+  "Superseded",
 ];
+
+const ALL_STATUS = "All status";
+
+function stageText(value: string | null): string {
+  if (!value) return NOT_SET;
+
+  return STAGE_LABELS[value] ?? value;
+}
+
+function dataText(project: Project): string {
+  if (
+    project.locas === 0 &&
+    project.samples === 0 &&
+    project.tests === 0
+  ) {
+    return "No data";
+  }
+
+  const parts = [
+    `${project.locas} loca`,
+    `${project.samples} samp`,
+    `${project.tests} tests`,
+  ];
+
+  if (project.published > 0) {
+    parts.push(`${project.published} published`);
+  }
+
+  return parts.join(" / ");
+}
+
+function matchesQuery(project: Project, query: string): boolean {
+  const needle = query.trim().toLowerCase();
+
+  if (!needle) return true;
+
+  return [
+    project.number,
+    project.name,
+    project.client,
+    project.location,
+  ]
+    .join(" ")
+    .toLowerCase()
+    .includes(needle);
+}
 
 export function PortfolioPage() {
   const { user } = useAuth();
@@ -40,6 +96,8 @@ export function PortfolioPage() {
   const [totalProjects, setTotalProjects] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState(ALL_STATUS);
 
   useEffect(() => {
     async function loadPortfolio() {
@@ -52,12 +110,15 @@ export function PortfolioPage() {
         const mappedProjects: Project[] = data.projects.map(
           (project: PortfolioProject) => ({
             number: String(project.PROJ_ID),
-            name: project.PROJ_NAME ?? "—",
-            client: "—",
-            location: project.PROJ_LOC ?? "—",
-            stage: "—",
-            status: "—",
-            dataSummary: "—",
+            name: project.PROJ_NAME ?? NOT_SET,
+            client: project.PROJ_CLNT ?? NOT_SET,
+            location: project.PROJ_LOC ?? NOT_SET,
+            stage: stageText(project.PROJECT_TYPE),
+            status: project.ISSUE_STATUS ?? NOT_SET,
+            locas: project.LOCA_COUNT ?? 0,
+            samples: project.SAMP_COUNT ?? 0,
+            tests: project.TEST_COUNT ?? 0,
+            published: project.PUBLISHED_COUNT ?? 0,
           })
         );
 
@@ -79,33 +140,53 @@ export function PortfolioPage() {
     loadPortfolio();
   }, []);
 
+  const visibleProjects = useMemo(
+    () =>
+      projects.filter(
+        (project) =>
+          matchesQuery(project, query) &&
+          (statusFilter === ALL_STATUS ||
+            project.status === statusFilter)
+      ),
+    [projects, query, statusFilter]
+  );
+
   const stats: Stat[] = [
     {
       label: "All Projects",
-      value:
-        totalProjects === null ? "—" : String(totalProjects),
+      value: String(totalProjects ?? projects.length),
       chip: "Searchable database",
       tone: "chip-info",
     },
     {
-      label: "In Progress",
-      value: "—",
-      chip: "Active",
+      label: "With Field Data",
+      value: String(projects.filter((p) => p.locas > 0).length),
+      chip: "Locations logged",
       tone: "chip-ok",
     },
     {
-      label: "Pending / Delayed",
-      value: "—",
-      chip: "Attention",
+      label: "With Lab Tests",
+      value: String(projects.filter((p) => p.tests > 0).length),
+      chip: "Tests logged",
       tone: "chip-warn",
     },
     {
-      label: "Completed / Delivered",
-      value: "—",
-      chip: "Archive",
+      label: "Issued",
+      value: String(
+        projects.filter(
+          (p) => p.status === "Final" || p.status === "Client Issue"
+        ).length
+      ),
+      chip: "Final or client issue",
       tone: "chip-muted",
     },
   ];
+
+  const statusCounts = [...ISSUE_STATUSES, NOT_SET].map((status) => ({
+    status,
+    count: projects.filter((project) => project.status === status)
+      .length,
+  }));
 
   return (
     <>
@@ -174,24 +255,38 @@ export function PortfolioPage() {
             </h3>
 
             <div className="actions">
+              <span className="chip chip-muted">
+                {visibleProjects.length} of {projects.length}
+              </span>
+
               <select
                 className="btn"
                 aria-label="Filter projects by status"
+                value={statusFilter}
+                onChange={(event) =>
+                  setStatusFilter(event.target.value)
+                }
               >
-                <option>All status</option>
-                <option>In Progress</option>
-                <option>Pending</option>
-                <option>Delayed</option>
-                <option>On Hold</option>
-                <option>Completed</option>
-                <option>Delivered</option>
+                <option value={ALL_STATUS}>All status</option>
+
+                {ISSUE_STATUSES.map((status) => (
+                  <option key={status} value={status}>
+                    {status}
+                  </option>
+                ))}
+
+                <option value={NOT_SET}>{NOT_SET}</option>
               </select>
 
-              <input
-                className="search"
-                placeholder="Search project no., name, place..."
-                aria-label="Search projects"
-              />
+              <div className="search">
+                <input
+                  type="search"
+                  placeholder="Search project no., name, place..."
+                  aria-label="Search projects"
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                />
+              </div>
             </div>
           </div>
 
@@ -237,8 +332,18 @@ export function PortfolioPage() {
                       No data available in the database.
                     </td>
                   </tr>
+                ) : visibleProjects.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={7}
+                      className="empty-row"
+                    >
+                      No project matches this search or status
+                      filter.
+                    </td>
+                  </tr>
                 ) : (
-                  projects.map((p) => (
+                  visibleProjects.map((p) => (
                     <tr key={p.number}>
                       <td>
                         <b>{p.number}</b>
@@ -256,7 +361,7 @@ export function PortfolioPage() {
 
                       <td>{p.status}</td>
 
-                      <td>{p.dataSummary}</td>
+                      <td>{dataText(p)}</td>
 
                       <td></td>
                     </tr>
@@ -277,11 +382,11 @@ export function PortfolioPage() {
           <div className="panel-body">
             <table className="stat-mini">
               <tbody>
-                {STATUS_ROWS.map((r) => (
-                  <tr key={r}>
-                    <td>{r}</td>
+                {statusCounts.map((row) => (
+                  <tr key={row.status}>
+                    <td>{row.status}</td>
                     <td>
-                      <b>—</b>
+                      <b>{row.count}</b>
                     </td>
                   </tr>
                 ))}
@@ -289,9 +394,9 @@ export function PortfolioPage() {
             </table>
 
             <p className="warning-note">
-              Management rule: project status is derived from
-              dates/workflow where possible; manual status changes
-              require a reason.
+              Status is the issue status recorded against each
+              project. Set it when the project is created and change
+              it from the project overview.
             </p>
           </div>
         </div>

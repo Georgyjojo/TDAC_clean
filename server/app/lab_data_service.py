@@ -28,7 +28,7 @@ async def create_lab_test(
                 """
                 SELECT
                     "PROJ_ID",
-                    "FILE_FSET"
+                    COALESCE("FILE_FSET", '') AS "FILE_FSET"
                 FROM "ags42"."PROJ"
                 WHERE "PROJ_ID" = $1
                 """,
@@ -55,7 +55,7 @@ async def create_lab_test(
                     "SAMP_REF",
                     "SAMP_TYPE",
                     "SAMP_BASE",
-                    "FILE_FSET"
+                    COALESCE("FILE_FSET", '') AS "FILE_FSET"
                 FROM "ags42"."SAMP"
                 WHERE "PROJ_ID" = $1
                   AND "LOCA_ID" = $2

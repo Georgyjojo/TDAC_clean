@@ -56,7 +56,7 @@ function Summary({ title, items, note, warning }: {
 }
 
 /** Simple SVG plot in the same style as the Atterberg flow curve. */
-function Plot({ title, pts, logX, xLabel, yLabel, xMin, xMax, yMax, labels }: {
+export function Plot({ title, pts, logX, xLabel, yLabel, xMin, xMax, yMax, labels, order }: {
   title: string;
   pts: { x: number; y: number }[];
   logX?: boolean;
@@ -66,13 +66,17 @@ function Plot({ title, pts, logX, xLabel, yLabel, xMin, xMax, yMax, labels }: {
   xMax: number;
   yMax: number;
   labels?: boolean;
+  /** "x" sorts by the x value; "path" keeps the order the points were
+      produced in, which is what a curve with a rebound branch needs. */
+  order?: "x" | "path";
 }) {
   const X0 = 70, X1 = 560, Y0 = 260, Y1 = 40;
   const tx = (x: number) =>
     X0 + ((logX ? Math.log10(x) - Math.log10(xMin) : x - xMin) /
       (logX ? Math.log10(xMax) - Math.log10(xMin) : xMax - xMin)) * (X1 - X0);
   const ty = (y: number) => Y0 - (y / yMax) * (Y0 - Y1);
-  const sorted = [...pts].filter((p) => p.x > 0 || !logX).sort((a, b) => a.x - b.x);
+  const kept = [...pts].filter((p) => p.x > 0 || !logX);
+  const sorted = order === "path" ? kept : kept.sort((a, b) => a.x - b.x);
   return (
     <div className="flow-curve-card">
       <h3>{title}</h3>
@@ -170,7 +174,7 @@ export function MethodPanel({ test, data, methodOptions, onChange }: {
                         <td>{i + 1}</td>{inp(i, "size")}{inp(i, "tare")}{inp(i, "tareRet")}
                         <Calc>{pr(i, "retained")}</Calc><Calc>{pr(i, "cumulative")}</Calc><Calc>{pr(i, "passing")}</Calc>
                         <td><Sel value={r.gratType} options={["WS", "DS", "HYD"]} onChange={(v) => setC(i, "gratType", v)} /></td>
-                        <td><button type="button" title="Remove row" onClick={() => onChange({ ...data, rows: data.rows.filter((_, j) => j !== i) })}>×</button></td>
+                        <td><button type="button" className="re-remove" title="Remove row" aria-label={`Remove row ${i + 1}`} onClick={() => onChange({ ...data, rows: data.rows.filter((_, j) => j !== i) })}>×</button></td>
                       </tr>
                     ))}
                   </tbody>

@@ -39,7 +39,9 @@ export function OverviewTab({
       setError("");
 
       const data = await getProjectLabTests(projectId);
-      setTests(data);
+      // An unexpected payload shape would otherwise leave this undefined and
+      // take the whole tab down when it reads tests.length below.
+      setTests(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error(err);
       setError("Failed to load laboratory tests.");

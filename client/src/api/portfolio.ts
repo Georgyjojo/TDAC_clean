@@ -4,6 +4,14 @@ export interface PortfolioProject {
   PROJ_ID: string | number;
   PROJ_NAME: string | null;
   PROJ_LOC: string | null;
+  PROJ_CLNT: string | null;
+  PROJECT_TYPE: string | null;
+  ISSUE_STATUS: string | null;
+  REPORT_DATE: string | null;
+  LOCA_COUNT: number;
+  SAMP_COUNT: number;
+  TEST_COUNT: number;
+  PUBLISHED_COUNT: number;
 }
 
 export interface PortfolioSummary {

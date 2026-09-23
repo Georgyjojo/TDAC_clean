@@ -31,6 +31,7 @@ import {
   InputModes,
   MethodPanel,
   PipelineCards,
+  Plot,
 } from "./ResultsEntryPanels";
 
 type TestType =
@@ -44,8 +45,7 @@ type TestType =
 type AtterbergTab =
   | "liquid"
   | "plastic"
-  | "flow"
-  | "shrinkage";
+  | "flow";
 
 type ConsolidationTab =
   | "load"
@@ -194,7 +194,9 @@ function countCompleteReadings(
     ATTERBERG: [],
     SHRINKAGE_LIMIT: ["wetMass", "dryMass", "wetVol", "dryVol"],
     TRIAXIAL_UU: ["dia", "length", "cell", "q", "strain"],
-    CONSOLIDATION: [],
+    // A consolidation increment is only a usable reading once it carries the
+    // pressure and the dial at both ends of that pressure step.
+    CONSOLIDATION: ["stage", "stress", "dialStart", "dialEnd"],
   };
 
   const columns = required[test];
@@ -219,6 +221,10 @@ const RESULT_OUTPUT_KEYS: Record<string, string> = {
   "Particle density": "particle_density",
   "Mean shrinkage limit": "shrinkage_limit",
   "Mean shrinkage ratio": "shrinkage_ratio",
+  // Consolidation keys as declared in lab.method_definition.result_schema.
+  "Mean Mv": "mv",
+  "Mean Cv": "cv",
+  Permeability: "permeability",
 };
 
 function outputSummary(results: Evaluation["results"]) {
@@ -233,19 +239,6 @@ function outputSummary(results: Evaluation["results"]) {
 
   return outputs;
 }
-
-// Consolidation stages start empty. Stages are added by the user while
-// entering a real test - no seeded example stages.
-const CONSOLIDATION_STAGES: {
-  stage: number;
-  direction: string;
-  stress: string;
-  eStart: string;
-  eEnd: string;
-  mv: string;
-  cvRoot: string;
-  cvLog: string;
-}[] = [];
 
 export function ResultsEntryTab(
   { selectedTestId }: { selectedTestId: string | null; }
@@ -801,6 +794,7 @@ export function ResultsEntryTab(
         results: value.results,
         curve: value.curve ?? null,
         perRow: value.perRow ?? null,
+        perRow2: value.perRow2 ?? null,
         ags: value.ags ?? null,
       },
       validation_snapshot: {
@@ -1285,6 +1279,14 @@ export function ResultsEntryTab(
               setConsolidationTab={
                 setConsolidationTab
               }
+              data={currentData}
+              onChange={(next) =>
+                setMethodData((previous) => ({
+                  ...previous,
+                  [selectedTest]: next,
+                }))
+              }
+              evaluation={evaluation?.value ?? null}
             />
 
           )}
@@ -1619,20 +1621,6 @@ function AtterbergSection({
           Flow curve
         </button>
 
-        <button
-          type="button"
-          className={
-            atterbergTab === "shrinkage"
-              ? "subtab active"
-              : "subtab"
-          }
-          onClick={() =>
-            setAtterbergTab("shrinkage")
-          }
-        >
-          Shrinkage
-        </button>
-
       </div>
 
       {atterbergTab === "liquid" && (
@@ -1659,10 +1647,6 @@ function AtterbergSection({
 
       {atterbergTab === "flow" && (
         <AtterbergFlowCurve evaluation={evaluation} />
-      )}
-
-      {atterbergTab === "shrinkage" && (
-        <ShrinkagePanel />
       )}
 
       {(atterbergTab === "liquid" ||
@@ -2306,53 +2290,21 @@ function ReportedRow({
 }
 
 /* ============================================================
-   SHRINKAGE
-   ============================================================ */
-
-function ShrinkagePanel() {
-
-  return (
-    <div className="simple-method-panel">
-
-      <h3>
-        Shrinkage
-      </h3>
-
-      <div className="identity-grid">
-
-        <Field label="Method profile">
-
-          <select defaultValue="IS 2720 Part 6">
-
-            <option>
-              IS 2720 Part 6
-            </option>
-
-          </select>
-
-        </Field>
-
-        <Field label="Initial wet mass (g)">
-          <input />
-        </Field>
-
-        <Field label="Dry mass (g)">
-          <input />
-        </Field>
-
-        <Field label="Final volume (cm³)">
-          <input />
-        </Field>
-
-      </div>
-
-    </div>
-  );
-}
-
-/* ============================================================
    CONSOLIDATION
    ============================================================ */
+
+/** One load increment: the pressure applied and the dial at each end of it. */
+const STAGE_COLUMNS = [
+  "stage",
+  "direction",
+  "stress",
+  "dialStart",
+  "dialEnd",
+  "temp",
+];
+
+/** One time-settlement reading taken inside a load increment. */
+const READING_COLUMNS = ["stage", "elapsed", "dial"];
 
 interface ConsolidationProps {
   method: string;
@@ -2363,6 +2315,18 @@ interface ConsolidationProps {
   setConsolidationTab: (
     value: ConsolidationTab
   ) => void;
+  /** The consolidation grids, shared with the save and submit payloads. */
+  data: MethodData;
+  onChange: (next: MethodData) => void;
+  evaluation: Evaluation | null;
+}
+
+/** The label a load increment shows in the table and in the reading picker. */
+function stageLabel(
+  rows: MethodData["rows"],
+  index: number
+): string {
+  return (rows[index]?.stage ?? "").trim() || `INC-${index + 1}`;
 }
 
 function ConsolidationSection({
@@ -2371,7 +2335,19 @@ function ConsolidationSection({
   setMethod,
   consolidationTab,
   setConsolidationTab,
+  data,
+  onChange,
+  evaluation,
 }: ConsolidationProps) {
+
+  const P = data.params;
+
+  const setP = (k: string, v: string) =>
+    onChange({ ...data, params: { ...P, [k]: v } });
+
+  const stageNames = data.rows.map(
+    (_, i) => stageLabel(data.rows, i)
+  );
 
   return (
     <section className="results-card">
@@ -2416,32 +2392,137 @@ function ConsolidationSection({
 
         </Field>
 
+        <Field label="Apparatus type (CONG_TYPE)">
+          <input
+            value={P.congType ?? ""}
+            onChange={(e) => setP("congType", e.target.value)}
+            placeholder="Oedometer (incremental loading)"
+          />
+        </Field>
+
+        <Field label="Condition (CONG_COND)">
+          <input
+            value={P.condition ?? ""}
+            onChange={(e) => setP("condition", e.target.value)}
+            placeholder="U"
+          />
+        </Field>
+
         <Field label="Diameter (mm)">
-          <input />
+          <input
+            inputMode="decimal"
+            value={P.diameter ?? ""}
+            onChange={(e) => setP("diameter", e.target.value)}
+          />
         </Field>
 
         <Field label="Initial height (mm)">
-          <input />
+          <input
+            inputMode="decimal"
+            value={P.height ?? ""}
+            onChange={(e) => setP("height", e.target.value)}
+          />
         </Field>
 
         <Field label="Initial void ratio">
-          <input />
+          <input
+            inputMode="decimal"
+            value={P.initialVoidRatio ?? ""}
+            onChange={(e) =>
+              setP("initialVoidRatio", e.target.value)
+            }
+          />
         </Field>
 
         <Field label="Initial water content (%)">
-          <input />
+          <input
+            inputMode="decimal"
+            value={P.initialWc ?? ""}
+            onChange={(e) => setP("initialWc", e.target.value)}
+          />
         </Field>
 
-        <Field label="Initial bulk density (Mg/m³)">
-          <input />
+        <Field label="Final water content (%)">
+          <input
+            inputMode="decimal"
+            value={P.finalWc ?? ""}
+            onChange={(e) => setP("finalWc", e.target.value)}
+          />
+        </Field>
+
+        <Field label="Bulk density (Mg/m³)">
+          <input
+            inputMode="decimal"
+            value={P.bulkDensity ?? ""}
+            onChange={(e) =>
+              setP("bulkDensity", e.target.value)
+            }
+          />
+        </Field>
+
+        <Field label="Dry density (Mg/m³)">
+          <input
+            inputMode="decimal"
+            value={P.dryDensity ?? ""}
+            onChange={(e) =>
+              setP("dryDensity", e.target.value)
+            }
+          />
         </Field>
 
         <Field label="Particle density (Mg/m³)">
-          <input />
+          <input
+            inputMode="decimal"
+            value={P.particleDensity ?? ""}
+            onChange={(e) =>
+              setP("particleDensity", e.target.value)
+            }
+          />
         </Field>
 
-        <Field label="Temperature (C)">
-          <input />
+        <Field label="Saturation (%)">
+          <input
+            inputMode="decimal"
+            value={P.saturation ?? ""}
+            onChange={(e) =>
+              setP("saturation", e.target.value)
+            }
+          />
+        </Field>
+
+        <Field label="Swelling pressure (kPa)">
+          <input
+            inputMode="decimal"
+            value={P.swellingPressure ?? ""}
+            onChange={(e) =>
+              setP("swellingPressure", e.target.value)
+            }
+          />
+        </Field>
+
+        <Field label="Drainage">
+          <select
+            value={P.drainage ?? "Double"}
+            onChange={(e) => setP("drainage", e.target.value)}
+          >
+            <option value="Double">
+              Double drained
+            </option>
+            <option value="Single">
+              Single drained
+            </option>
+          </select>
+        </Field>
+
+        <Field label="Dial factor (mm/div)">
+          <input
+            inputMode="decimal"
+            value={P.dialFactor ?? ""}
+            onChange={(e) =>
+              setP("dialFactor", e.target.value)
+            }
+            placeholder="0.002"
+          />
         </Field>
 
       </div>
@@ -2507,20 +2588,44 @@ function ConsolidationSection({
       </div>
 
       {consolidationTab === "load" && (
-        <ConsolidationLoadStages />
+        <ConsolidationLoadStages
+          data={data}
+          onChange={onChange}
+          evaluation={evaluation}
+        />
       )}
 
       {consolidationTab === "time" && (
-        <ConsolidationTimeReadings />
+        <ConsolidationTimeReadings
+          data={data}
+          onChange={onChange}
+          evaluation={evaluation}
+          stageNames={stageNames}
+        />
       )}
 
       {consolidationTab === "elog" && (
-        <ElogStress />
+        <ElogStress evaluation={evaluation} />
       )}
 
       {consolidationTab === "cv" && (
-        <CvPlots />
+        <CvPlots
+          data={data}
+          evaluation={evaluation}
+          stageNames={stageNames}
+        />
       )}
+
+      {/* The headings this test writes into CONG and CONS, shown the same
+          way the particle density panel shows its own LPDN lines. */}
+      <div className="reported-card">
+        <h3>AGS conversion</h3>
+        {(evaluation?.ags ?? ["Not calculated"]).map((line) => (
+          <div className="re-mono" key={line}>
+            {line}
+          </div>
+        ))}
+      </div>
 
     </section>
   );
@@ -2530,90 +2635,222 @@ function ConsolidationSection({
    CONSOLIDATION LOAD STAGES
    ============================================================ */
 
-function ConsolidationLoadStages() {
+interface ConsolidationGridProps {
+  data: MethodData;
+  onChange: (next: MethodData) => void;
+  evaluation: Evaluation | null;
+}
+
+/** Props of a panel that only reads the grids and the evaluation. */
+interface ConsolidationReadProps {
+  data: MethodData;
+  evaluation: Evaluation | null;
+}
+
+/** Empty cell set for one row of a grid. */
+function emptyRow(
+  columns: string[],
+  filled: Record<string, string> = {}
+): Record<string, string> {
+  return {
+    ...Object.fromEntries(columns.map((c) => [c, ""])),
+    ...filled,
+  };
+}
+
+function ConsolidationLoadStages({
+  data,
+  onChange,
+  evaluation,
+}: ConsolidationGridProps) {
+
+  const rows = data.rows;
+  const per = evaluation?.perRow ?? [];
+
+  const setCell = (index: number, key: string, value: string) =>
+    onChange({
+      ...data,
+      rows: rows.map((r, i) =>
+        i === index ? { ...r, [key]: value } : r
+      ),
+    });
+
+  const addRow = () => {
+    const direction =
+      rows.length === 0 ? "LOAD" : "LOAD";
+
+    onChange({
+      ...data,
+      rows: [
+        ...rows,
+        emptyRow(STAGE_COLUMNS, {
+          stage: `INC-${rows.length + 1}`,
+          direction,
+        }),
+      ],
+    });
+  };
+
+  const removeRow = (index: number) =>
+    onChange({
+      ...data,
+      rows: rows.filter((_, i) => i !== index),
+    });
 
   return (
-    <div className="table-scroll">
+    <>
 
-      <table className="results-table consolidation-table">
+      <div className="table-scroll">
 
-        <thead>
+        <table className="results-table consolidation-table">
 
-          <tr>
-            <th>Stage</th>
-            <th>Direction</th>
-            <th>Stress end (kPa)</th>
-            <th>e start</th>
-            <th>e end</th>
-            <th>mv (m²/MN)</th>
-            <th>Cv root (m²/yr)</th>
-            <th>Cv log (m²/yr)</th>
-          </tr>
+          <thead>
 
-        </thead>
-
-        <tbody>
-
-          {CONSOLIDATION_STAGES.length === 0 && (
             <tr>
-              <td colSpan={8} className="re-muted">
-                No load stages entered. Consolidation is display-only in this
-                build - readings are not yet bound to a calculation engine.
-              </td>
+              <th>Increment</th>
+              <th>Direction</th>
+              <th>Pressure (kPa)</th>
+              <th>Dial start</th>
+              <th>Dial end</th>
+              <th>Temp (C)</th>
+              <th>Settle (mm)</th>
+              <th>e start</th>
+              <th>e end</th>
+              <th>Mv (m²/MN)</th>
+              <th>Cv root (m²/yr)</th>
+              <th>Cv log (m²/yr)</th>
+              <th aria-label="Row actions" />
             </tr>
-          )}
 
-          {CONSOLIDATION_STAGES.map(
-            (stage) => (
+          </thead>
 
-              <tr key={stage.stage}>
+          <tbody>
 
-                <td>
-                  {stage.stage}
+            {rows.length === 0 && (
+              <tr>
+                <td colSpan={13} className="re-muted">
+                  No load increment entered. Add one row per pressure
+                  step, give the dial reading at the start and at the
+                  end of that step, and the swell or compression cells
+                  fill themselves in.
                 </td>
+              </tr>
+            )}
+
+            {rows.map((row, index) => (
+
+              <tr key={index}>
 
                 <td>
-                  {stage.direction}
-                </td>
-
-                <td>
-
                   <input
-                    defaultValue={stage.stress}
+                    value={row.stage}
+                    onChange={(e) =>
+                      setCell(index, "stage", e.target.value)
+                    }
+                    placeholder={`INC-${index + 1}`}
                   />
-
                 </td>
 
                 <td>
-                  {stage.eStart}
+                  <select
+                    value={row.direction || "LOAD"}
+                    onChange={(e) =>
+                      setCell(index, "direction", e.target.value)
+                    }
+                  >
+                    <option value="LOAD">LOAD</option>
+                    <option value="UNLOAD">UNLOAD</option>
+                    <option value="RELOAD">RELOAD</option>
+                  </select>
                 </td>
 
                 <td>
-                  {stage.eEnd}
+                  <input
+                    inputMode="decimal"
+                    value={row.stress}
+                    onChange={(e) =>
+                      setCell(index, "stress", e.target.value)
+                    }
+                  />
                 </td>
 
                 <td>
-                  {stage.mv}
+                  <input
+                    inputMode="decimal"
+                    value={row.dialStart}
+                    onChange={(e) =>
+                      setCell(index, "dialStart", e.target.value)
+                    }
+                  />
                 </td>
 
                 <td>
-                  {stage.cvRoot}
+                  <input
+                    inputMode="decimal"
+                    value={row.dialEnd}
+                    onChange={(e) =>
+                      setCell(index, "dialEnd", e.target.value)
+                    }
+                  />
                 </td>
 
                 <td>
-                  {stage.cvLog}
+                  <input
+                    inputMode="decimal"
+                    value={row.temp}
+                    onChange={(e) =>
+                      setCell(index, "temp", e.target.value)
+                    }
+                  />
+                </td>
+
+                <td className="calculated-cell">{per[index]?.h ?? "—"}</td>
+                <td className="calculated-cell">{per[index]?.eStart ?? "—"}</td>
+                <td className="calculated-cell">{per[index]?.eEnd ?? "—"}</td>
+                <td className="calculated-cell">{per[index]?.mv ?? "—"}</td>
+                <td className="calculated-cell">{per[index]?.cvRoot ?? "—"}</td>
+                <td className="calculated-cell">{per[index]?.cvLog ?? "—"}</td>
+
+                <td>
+                  <button
+                    type="button"
+                    className="re-remove"
+                    title="Remove this increment"
+                    aria-label={`Remove increment ${index + 1}`}
+                    onClick={() => removeRow(index)}
+                  >
+                    ×
+                  </button>
                 </td>
 
               </tr>
 
-            )
-          )}
+            ))}
 
-        </tbody>
+          </tbody>
 
-      </table>
+        </table>
 
-    </div>
+      </div>
+
+      <div className="re-row-actions">
+
+        <button
+          type="button"
+          className="re-add"
+          onClick={addRow}
+        >
+          + Add load increment
+        </button>
+
+        <span className="field-hint">
+          Mv and Cv come from the specimen fields above and the time
+          readings on the next tab.
+        </span>
+
+      </div>
+
+    </>
   );
 }
 
@@ -2621,39 +2858,161 @@ function ConsolidationLoadStages() {
    CONSOLIDATION TIME READINGS
    ============================================================ */
 
-function ConsolidationTimeReadings() {
+function ConsolidationTimeReadings({
+  data,
+  onChange,
+  evaluation,
+  stageNames,
+}: ConsolidationGridProps & { stageNames: string[] }) {
+
+  const rows = data.rows2 ?? [];
+  const per = evaluation?.perRow2 ?? [];
+
+  const setCell = (index: number, key: string, value: string) =>
+    onChange({
+      ...data,
+      rows2: rows.map((r, i) =>
+        i === index ? { ...r, [key]: value } : r
+      ),
+    });
+
+  const addRow = () =>
+    onChange({
+      ...data,
+      rows2: [
+        ...rows,
+        emptyRow(READING_COLUMNS, {
+          stage: stageNames[stageNames.length - 1] ?? "",
+        }),
+      ],
+    });
+
+  const removeRow = (index: number) =>
+    onChange({
+      ...data,
+      rows2: rows.filter((_, i) => i !== index),
+    });
 
   return (
-    <div className="table-scroll">
+    <>
 
-      <table className="results-table">
+      <div className="table-scroll">
 
-        <thead>
+        <table className="results-table consolidation-table">
 
-          <tr>
-            <th>Stage</th>
-            <th>Elapsed time</th>
-            <th>Dial reading</th>
-            <th>Settlement</th>
-            <th>Comment</th>
-          </tr>
+          <thead>
 
-        </thead>
+            <tr>
+              <th>Increment</th>
+              <th>Elapsed (min)</th>
+              <th>Dial (div)</th>
+              <th>Settle (mm)</th>
+              <th>Strain (%)</th>
+              <th>Void ratio</th>
+              <th aria-label="Row actions" />
+            </tr>
 
-        <tbody>
+          </thead>
 
-          <tr>
-            <td colSpan={5} className="re-muted">
-              No time readings entered. Time-deformation series entry is not
-              implemented in this build.
-            </td>
-          </tr>
+          <tbody>
 
-        </tbody>
+            {rows.length === 0 && (
+              <tr>
+                <td colSpan={7} className="re-muted">
+                  No time reading entered. For each increment log the
+                  dial against elapsed time - the root-time and
+                  log-time constructions need the early readings close
+                  together and the tail well past the end of primary
+                  consolidation.
+                </td>
+              </tr>
+            )}
 
-      </table>
+            {rows.map((row, index) => (
 
-    </div>
+              <tr key={index}>
+
+                <td>
+                  <select
+                    value={row.stage}
+                    onChange={(e) =>
+                      setCell(index, "stage", e.target.value)
+                    }
+                  >
+                    <option value="">Pick increment…</option>
+
+                    {stageNames.map((name) => (
+                      <option key={name} value={name}>
+                        {name}
+                      </option>
+                    ))}
+
+                  </select>
+                </td>
+
+                <td>
+                  <input
+                    inputMode="decimal"
+                    value={row.elapsed}
+                    onChange={(e) =>
+                      setCell(index, "elapsed", e.target.value)
+                    }
+                  />
+                </td>
+
+                <td>
+                  <input
+                    inputMode="decimal"
+                    value={row.dial}
+                    onChange={(e) =>
+                      setCell(index, "dial", e.target.value)
+                    }
+                  />
+                </td>
+
+                <td className="calculated-cell">{per[index]?.disp ?? "—"}</td>
+                <td className="calculated-cell">{per[index]?.strain ?? "—"}</td>
+                <td className="calculated-cell">{per[index]?.e ?? "—"}</td>
+
+                <td>
+                  <button
+                    type="button"
+                    className="re-remove"
+                    title="Remove this reading"
+                    aria-label={`Remove reading ${index + 1}`}
+                    onClick={() => removeRow(index)}
+                  >
+                    ×
+                  </button>
+                </td>
+
+              </tr>
+
+            ))}
+
+          </tbody>
+
+        </table>
+
+      </div>
+
+      <div className="re-row-actions">
+
+        <button
+          type="button"
+          className="re-add"
+          onClick={addRow}
+        >
+          + Add time reading
+        </button>
+
+        <span className="field-hint">
+          Times are minutes from the start of that increment.
+        </span>
+
+      </div>
+
+    </>
   );
 }
 
@@ -2661,86 +3020,73 @@ function ConsolidationTimeReadings() {
    E-LOG STRESS
    ============================================================ */
 
-function ElogStress() {
+function ElogStress({
+  evaluation,
+}: {
+  evaluation: Evaluation | null;
+}) {
+
+  const pts = evaluation?.curve ?? [];
+
+  // Only the loaded points carry a stress: the opening point sits at zero,
+  // which the log axis drops.
+  const xs = pts.map((p) => p.x).filter((x) => x > 0);
+  const ys = pts.map((p) => p.y);
+
+  // The curve starts at the first increment's opening void ratio, so a
+  // two point curve is the smallest thing worth drawing.
+  if (pts.length < 2 || xs.length === 0) {
+    return (
+      <div className="re-empty">
+
+        <strong>
+          Not enough load increments
+        </strong>
+
+        <p>
+          Enter at least two increments on the load stages tab. The
+          void ratio against log stress curve is drawn from the
+          settlement of each increment.
+        </p>
+
+      </div>
+    );
+  }
+
+  // A single stress over the whole test collapses the log axis to zero
+  // width, which plots the points at NaN. Widen the range by a decade either
+  // side so the point lands mid axis instead.
+  const xLo = Math.min(...xs);
+  const xHi = Math.max(...xs);
+  const xMin = xHi > xLo ? xLo : xLo / 10;
+  const xMax = xHi > xLo ? xHi : xHi * 10;
 
   return (
-    <div className="graph-panel">
+    <>
 
-      <h3>
-        e-log stress relationship
-      </h3>
+      <Plot
+        title="Void ratio against effective stress"
+        pts={pts}
+        logX
+        order="path"
+        xLabel="Effective stress (kPa, log scale)"
+        yLabel="Void ratio"
+        xMin={xMin}
+        xMax={xMax}
+        yMax={Math.max(...ys) * 1.05}
+      />
 
-      <div className="elog-chart">
+      <div className="re-row-actions">
 
-        <svg
-          viewBox="0 0 700 350"
-          className="flow-svg"
-        >
-
-          <line
-            x1="70"
-            y1="40"
-            x2="70"
-            y2="300"
-            className="chart-grid"
-          />
-
-          <line
-            x1="70"
-            y1="300"
-            x2="650"
-            y2="300"
-            className="chart-grid"
-          />
-
-          <line
-            x1="70"
-            y1="100"
-            x2="650"
-            y2="100"
-            className="chart-grid"
-          />
-
-          <line
-            x1="70"
-            y1="170"
-            x2="650"
-            y2="170"
-            className="chart-grid"
-          />
-
-          <line
-            x1="70"
-            y1="235"
-            x2="650"
-            y2="235"
-            className="chart-grid"
-          />
-
-          <text
-            x="350"
-            y="170"
-            textAnchor="middle"
-            className="chart-label"
-          >
-            No consolidation readings yet
-          </text>
-
-        </svg>
+        <span className="field-hint">
+          Cc is taken from the steepest load increment and Cr from the
+          unload increments. The Casagrande preconsolidation
+          construction is not applied here.
+        </span>
 
       </div>
 
-      <div className="graph-summary">
-
-        <div className="re-note">
-          Consolidation derived parameters (Cc, Cr, preconsolidation stress)
-          are not computed in this build yet. They appear once consolidation
-          readings are bound to the calculation engine.
-        </div>
-
-      </div>
-
-    </div>
+    </>
   );
 }
 
@@ -2748,55 +3094,135 @@ function ElogStress() {
    CV PLOTS
    ============================================================ */
 
-function CvPlots() {
+function CvPlots({
+  data,
+  evaluation,
+  stageNames,
+}: ConsolidationReadProps & { stageNames: string[] }) {
+
+  const per = evaluation?.perRow ?? [];
+  const readings = data.rows2 ?? [];
+
+  const [picked, setPicked] = useState(0);
+
+  const pickedLabel = stageNames[picked] ?? "";
+
+  // The time-settlement series of the increments that have readings,
+  // drawn against root time - the axis the t90 construction is read on.
+  const series = readings
+    .filter((r) => r.stage === pickedLabel)
+    .map((r) => ({
+      t: Number(r.elapsed),
+      y: Number(r.dial),
+    }))
+    .filter((p) => Number.isFinite(p.t) && Number.isFinite(p.y) && p.t > 0)
+    .sort((a, b) => a.t - b.t)
+    .map((p) => ({ x: Math.sqrt(p.t), y: p.y }));
 
   return (
-    <div className="cv-panel">
+    <>
 
-      <h3>
-        Coefficient of consolidation
-      </h3>
+      <div className="table-scroll">
 
-      <div className="cv-grid">
+        <table className="results-table consolidation-table">
 
-        <div className="cv-card">
+          <thead>
 
-          <h4>
-            Root-time method
-          </h4>
+            <tr>
+              <th>Increment</th>
+              <th>t90 (min)</th>
+              <th>Cv root (m²/yr)</th>
+              <th>t50 (min)</th>
+              <th>Cv log (m²/yr)</th>
+              <th>Secondary coeff.</th>
+              <th>k (m/s)</th>
+            </tr>
 
-          <div className="mini-chart">
-            <div className="mini-line" />
-          </div>
+          </thead>
 
-          <strong>
-            Not computed
-          </strong>
+          <tbody>
 
-        </div>
+            {data.rows.length === 0 && (
+              <tr>
+                <td colSpan={7} className="re-muted">
+                  No load increment entered yet.
+                </td>
+              </tr>
+            )}
 
-        <div className="cv-card">
+            {data.rows.map((_, index) => (
 
-          <h4>
-            Log-time method
-          </h4>
+              <tr key={index}>
 
-          <div className="mini-chart">
-            <div className="mini-line second" />
-          </div>
+                <td>{stageNames[index]}</td>
+                <td className="calculated-cell">{per[index]?.t90 ?? "—"}</td>
+                <td className="calculated-cell">{per[index]?.cvRoot ?? "—"}</td>
+                <td className="calculated-cell">{per[index]?.t50 ?? "—"}</td>
+                <td className="calculated-cell">{per[index]?.cvLog ?? "—"}</td>
+                <td className="calculated-cell">{per[index]?.ca ?? "—"}</td>
+                <td className="calculated-cell">{per[index]?.k ?? "—"}</td>
 
-          <strong>
-            Not computed
-          </strong>
+              </tr>
 
-        </div>
+            ))}
+
+          </tbody>
+
+        </table>
 
       </div>
 
-    </div>
+      <div className="re-row-actions">
+
+        <label className="re-picker">
+
+          <span>
+            Time curve for
+          </span>
+
+          <select
+            value={picked}
+            onChange={(e) => setPicked(Number(e.target.value))}
+          >
+            {stageNames.map((name, index) => (
+              <option key={name} value={index}>
+                {name}
+              </option>
+            ))}
+          </select>
+
+        </label>
+
+      </div>
+
+      {series.length > 1 ? (
+        <Plot
+          title={`Dial against root time - ${pickedLabel}`}
+          pts={series}
+          xLabel="Root time (min^0.5)"
+          yLabel="Dial reading (div)"
+          xMin={0}
+          xMax={Math.max(...series.map((p) => p.x))}
+          yMax={Math.max(...series.map((p) => p.y)) * 1.02}
+        />
+      ) : (
+        <div className="re-empty">
+
+          <strong>
+            No time readings for {pickedLabel || "this increment"}
+          </strong>
+
+          <p>
+            Add readings on the time readings tab to form t90 and
+            t50.
+          </p>
+
+        </div>
+      )}
+
+    </>
   );
 }
-
 /* ============================================================
    COMMON COMPONENTS
    ============================================================ */

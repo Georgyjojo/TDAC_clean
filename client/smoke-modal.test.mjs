@@ -1,7 +1,7 @@
 /* Runtime smoke test: Add New Project page + Topbar account menu.
    Renders the REAL App (AuthProvider + HashRouter) at /#/projects/new,
-   checks the 9 form fields, the Excel import trigger, Cancel navigation,
-   and the account menu open/close + change-password modal paths. */
+   checks the full register form field list and Cancel navigation, plus the
+   account menu open/close + change-password modal paths. */
 import { JSDOM } from "jsdom";
 
 const dom = new JSDOM("<!doctype html><html><body><div id=root></div></body></html>", {
@@ -66,28 +66,35 @@ const pressKey = (key) => act(async () => {
 const page = () => document.querySelector(".page-title");
 check("Add New Project page rendered", page()?.textContent === "Add New Project");
 
-// 2. Exactly the 9 form fields, in form order
+// 2. The whole register form, in the order CreateProject.tsx renders it
 const EXPECTED = [
   "project_id", "project_name", "project_location", "project_client",
-  "borehole_id", "borehole_type", "start_date", "end_date", "final_depth",
+  "road_reference", "chainage_text", "structure_reference", "selected_boreholes",
+  "consultant_name", "contractor_name", "report_title", "report_volume_title",
+  "document_reference", "revision", "report_date", "tdac_company_name",
 ];
-const names = [...document.querySelectorAll("form input")].map((i) => i.name);
-check(`9 form fields (got ${names.length})`, JSON.stringify(names) === JSON.stringify(EXPECTED));
+const formInputs = [...document.querySelectorAll("form input")];
+const names = formInputs.map((i) => i.name);
+check(`form fields = ${EXPECTED.length} (got ${names.length})`,
+  JSON.stringify(names) === JSON.stringify(EXPECTED));
+check("every form field is required", formInputs.every((i) => i.required));
 
-// 3. All inputs blank (no mock data) and required behavior
-const allBlank = [...document.querySelectorAll("form input")].every((i) => i.value === "");
-check("all inputs blank (no mock data)", allBlank);
+// 3. Blank on arrival except the company name, which defaults to TDAC
+const blankNames = formInputs.filter((i) => i.value === "").map((i) => i.name);
+check("all inputs blank except tdac_company_name",
+  JSON.stringify(blankNames) === JSON.stringify(EXPECTED.filter((n) => n !== "tdac_company_name")));
+check("tdac_company_name carries its default",
+  formInputs.find((i) => i.name === "tdac_company_name")?.value === "TDAC Geotechnical Solutions Private Limited");
 check("project_id always required",
   document.querySelector('input[name="project_id"]')?.required === true);
-check("name relaxes required when a workbook is loaded",
+check("project_name required",
   document.querySelector('input[name="project_name"]')?.required === true);
 
-// 4. Excel import trigger + Cancel live in the page head
+// 4. Page head: Cancel only. Import from Excel now lives in the workspace
+// overview, where smoke-workspace covers it.
 const headButtons = [...document.querySelectorAll(".page-head-actions button")];
-check("Excel import trigger rendered",
-  headButtons.some((b) => b.textContent.trim() === "Import from Excel input sheet"));
-check("Cancel rendered", headButtons.some((b) => b.textContent.trim() === "Cancel"));
-check("no workbook note before a file is chosen", !document.querySelector(".import-note"));
+check("page head offers Cancel only",
+  JSON.stringify(headButtons.map((b) => b.textContent.trim())) === JSON.stringify(["Cancel"]));
 
 // 5. Cancel navigates back to the portfolio register
 await click(headButtons.find((b) => b.textContent.trim() === "Cancel"));
